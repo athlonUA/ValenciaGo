@@ -1,20 +1,32 @@
-# Valencia Events
+# ValenciaGo
 
 Event discovery platform for Valencia, Spain. Aggregates events from multiple public sources, normalizes and deduplicates them, and delivers them via a Telegram bot.
 
 ## Architecture
 
-```
-Sources                    Pipeline                     Delivery
-┌─────────────────┐   ┌──────────────────────┐   ┌──────────────────┐
-│ Visit Valencia   │──▶│                      │   │                  │
-│ (web scraping)   │   │  Fetch               │   │  Telegram Bot    │
-├─────────────────┤   │  → Normalize          │   │  (/today,        │
-│ Meetup           │──▶│  → Classify           │──▶│   /weekend,      │
-│ (__NEXT_DATA__)  │   │  → Deduplicate        │   │   /category,     │
-├─────────────────┤   │  → Store (PostgreSQL)  │   │   /search, ...)  │
-│ Eventbrite       │──▶│                      │   │                  │
-│ (API, optional)  │   └──────────────────────┘   └──────────────────┘
+```mermaid
+graph LR
+  subgraph Sources
+    VV["Visit Valencia<br/>(web scraping)"]
+    MU["Meetup<br/>(__NEXT_DATA__)"]
+    EB["Eventbrite<br/>(API, optional)"]
+  end
+
+  subgraph Pipeline
+    F["Fetch"] --> N["Normalize"]
+    N --> C["Classify"]
+    C --> D["Deduplicate"]
+    D --> S["Store<br/>(PostgreSQL)"]
+  end
+
+  subgraph Delivery
+    BOT["Telegram Bot<br/>/today, /weekend,<br/>/category, /search ..."]
+  end
+
+  VV --> F
+  MU --> F
+  EB --> F
+  S --> BOT
 ```
 
 ### Data Flow
