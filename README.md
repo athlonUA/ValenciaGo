@@ -115,6 +115,8 @@ Results are paginated (5 events per page) with inline navigation buttons.
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string |
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from @BotFather |
 | `EVENTBRITE_TOKEN` | No | — | Eventbrite API v3 token (enables Eventbrite source) |
+| `OPENAI_API_KEY` | No | — | OpenAI API key (enables smart search and event summaries) |
+| `BOT_OWNER_ID` | No | — | Your Telegram numeric user ID (restricts voice search to owner) |
 | `INGESTION_CRON` | No | `0 */6 * * *` | Cron expression for scheduled ingestion |
 | `INGESTION_ENABLED` | No | `true` | Enable/disable scheduled ingestion |
 | `NODE_ENV` | No | `development` | Environment |
