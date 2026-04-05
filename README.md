@@ -115,7 +115,6 @@ Results are paginated (5 events per page) with inline navigation buttons.
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string |
 | `TELEGRAM_BOT_TOKEN` | Yes | — | Bot token from @BotFather |
 | `EVENTBRITE_TOKEN` | No | — | Eventbrite API v3 token (enables Eventbrite source) |
-| `MEETUP_GROUPS` | No | — | Comma-separated Meetup group slugs |
 | `INGESTION_CRON` | No | `0 */6 * * *` | Cron expression for scheduled ingestion |
 | `INGESTION_ENABLED` | No | `true` | Enable/disable scheduled ingestion |
 | `NODE_ENV` | No | `development` | Environment |
