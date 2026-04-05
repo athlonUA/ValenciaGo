@@ -10,22 +10,8 @@ const log = createLogger('visitvalencia');
 const BASE_URL = 'https://www.visitvalencia.com';
 const LISTING_URL = `${BASE_URL}/en/events-valencia`;
 
-// Visit Valencia category IDs to our internal mapping hints
-const VV_CATEGORIES: Record<string, string> = {
-  exhibitions: 'arts',
-  music: 'music',
-  gastronomy: 'food-drink',
-  show: 'performing-arts',
-  sport: 'sports',
-  nature: 'wellness',
-  'with children': 'kids-family',
-  shopping: 'other',
-  'parties and traditions': 'festivals',
-  'urban festival': 'festivals',
-  'health & wellness': 'wellness',
-  christmas: 'festivals',
-  fallas: 'festivals',
-};
+// Visit Valencia category IDs to our internal mapping hints (reserved for future per-source classification)
+// const VV_CATEGORIES: Record<string, string> = { exhibitions: 'arts', music: 'music', ... };
 
 export class VisitValenciaAdapter implements SourceAdapter {
   readonly name = 'visitvalencia';
@@ -104,7 +90,7 @@ export class VisitValenciaAdapter implements SourceAdapter {
     if (!title) return null;
 
     // URL: from .card__link href or about attribute
-    let eventPath = card.find('.card__link').attr('href') || card.attr('about') || '';
+    const eventPath = card.find('.card__link').attr('href') || card.attr('about') || '';
     if (!eventPath) return null;
 
     // Ensure full URL

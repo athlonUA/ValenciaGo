@@ -8,8 +8,9 @@ const MONTHS_CA: Record<string, number> = {
   juliol: 6, agost: 7, setembre: 8, octubre: 9, novembre: 10, desembre: 11,
 };
 
-const TZ_OFFSET_CET = 1;  // UTC+1
-const TZ_OFFSET_CEST = 2; // UTC+2
+// CET/CEST offsets used by getMadridOffset() below
+// const TZ_OFFSET_CET = 1;  // UTC+1
+// const TZ_OFFSET_CEST = 2; // UTC+2
 
 /**
  * Parse a date string from various formats into a Date object.
@@ -74,7 +75,7 @@ export function parseEventDate(raw: string): Date {
 
 const MADRID_TZ = 'Europe/Madrid';
 
-function toMadridDate(date: Date): Date {
+export function toMadridDate(date: Date): Date {
   const str = date.toLocaleDateString('en-CA', { timeZone: MADRID_TZ }); // YYYY-MM-DD
   return new Date(str + 'T00:00:00');
 }

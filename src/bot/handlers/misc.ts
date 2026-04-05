@@ -1,4 +1,4 @@
-import { Bot, Context } from 'grammy';
+import { Bot } from 'grammy';
 import type pg from 'pg';
 import {
   getEventStats, getEventById, deleteUserData,

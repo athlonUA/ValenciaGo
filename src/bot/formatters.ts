@@ -72,8 +72,8 @@ export function formatEventCard(event: StoredEvent): string {
 export function formatEventList(
   events: StoredEvent[],
   header: string,
-  page: number,
-  totalPages: number,
+  _page: number,
+  _totalPages: number,
 ): string {
   if (events.length === 0) {
     return `${header}\n\nNo events found.`;
@@ -204,7 +204,7 @@ function truncate(text: string, maxLen: number): string {
 }
 
 /** Shorten venue: take just the name, drop full address */
-function shortVenue(venue: string): string {
+export function shortVenue(venue: string): string {
   const sep = venue.search(/\s*[–—\-,]\s*(?:Pol[ií]gono|Calle|Avda|C\/|n[ºo°]|\d{5})/i);
   if (sep > 0) return venue.substring(0, sep).trim();
   if (venue.length > 30) {

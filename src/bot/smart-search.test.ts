@@ -1,4 +1,4 @@
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { cacheResults, getCachedIds } from './smart-search.js';
 
 describe('smart-search cache', () => {
