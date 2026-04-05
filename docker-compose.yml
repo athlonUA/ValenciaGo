@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: valencia_events
+      POSTGRES_USER: events
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U events -d valencia_events"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://events:${DB_PASSWORD}@db:5432/valencia_events
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Daily database backup (pg_dump, retains 7 days)
+  db-backup:
+    image: postgres:16-alpine
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: events
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: valencia_events
+    volumes:
+      - db-backups:/backups
+    entrypoint: /bin/sh
+    command: >
+      -c 'while true; do
+        STAMP=$$(date +%Y%m%d_%H%M%S);
+        pg_dump -Fc > /backups/backup_$$STAMP.dump;
+        echo "Backup created: backup_$$STAMP.dump";
+        find /backups -name "backup_*.dump" -mtime +7 -delete;
+        sleep 86400;
+      done'
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  pgdata:
+  db-backups:
