@@ -90,8 +90,9 @@ export function registerMiscHandlers(bot: Bot, pool: pg.Pool): void {
     if (!isLocale(chosen)) { await ctx.answerCallbackQuery(); return; }
     await setUserLocale(pool, userId, chosen);
 
-    // Update command menu for this specific chat
+    // Update command menu for this specific chat (clear first, then set fresh)
     if (chatId) {
+      await ctx.api.deleteMyCommands({ scope: { type: 'chat', chat_id: chatId } });
       await ctx.api.setMyCommands(buildCommandList(chosen), {
         scope: { type: 'chat', chat_id: chatId },
       });
