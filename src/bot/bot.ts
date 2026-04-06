@@ -49,7 +49,10 @@ export function createBot(token: string, pool: pg.Pool, openaiApiKey?: string, o
     }
   }, 60_000).unref();
 
-  // Register per-language command menus (Telegram shows based on user's app language)
+  // Clear stale command menus, then register fresh per-language lists
+  bot.api.deleteMyCommands();
+  bot.api.deleteMyCommands({ language_code: 'uk' });
+  bot.api.deleteMyCommands({ language_code: 'es' });
   bot.api.setMyCommands(buildCommandList('en'));
   bot.api.setMyCommands(buildCommandList('uk'), { language_code: 'uk' });
   bot.api.setMyCommands(buildCommandList('es'), { language_code: 'es' });
