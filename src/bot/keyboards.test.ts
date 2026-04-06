@@ -44,12 +44,22 @@ describe('PAGE_SIZE', () => {
 describe('buildCategoryKeyboard', () => {
   test('returns an InlineKeyboard with rows', () => {
     const kb = buildCategoryKeyboard();
-    // InlineKeyboard stores button data in .inline_keyboard
-    // grammy's InlineKeyboard exposes the raw data
     expect(kb).toBeDefined();
-    // The keyboard should have a property that holds rows of buttons
     expect(typeof kb.text).toBe('function');
     expect(typeof kb.row).toBe('function');
+  });
+
+  test('uses English category names by default', () => {
+    const kb = buildCategoryKeyboard('en');
+    const data = JSON.stringify(kb);
+    expect(data).toContain('Music');
+  });
+
+  test('uses Ukrainian category names with uk locale', () => {
+    const kb = buildCategoryKeyboard('uk');
+    const data = JSON.stringify(kb);
+    expect(data).toContain('Музика');
+    expect(data).toContain('Технології');
   });
 });
 
@@ -64,7 +74,6 @@ describe('buildEventListKeyboard', () => {
   test('includes pagination when totalPages > 1', () => {
     const events = [makeEvent('e1'), makeEvent('e2'), makeEvent('e3')];
     const kb = buildEventListKeyboard(events, 'today', 1, 3);
-    // Serialize to check pagination data is present
     const data = JSON.stringify(kb);
     expect(data).toContain('Next');
     expect(data).toContain('1/3');
@@ -75,5 +84,20 @@ describe('buildEventListKeyboard', () => {
     const kb = buildEventListKeyboard(events, 'cat', 1, 1);
     const data = JSON.stringify(kb);
     expect(data).toContain('Categories');
+  });
+
+  test('uses Ukrainian button labels with uk locale', () => {
+    const events = [makeEvent('e1'), makeEvent('e2'), makeEvent('e3')];
+    const kb = buildEventListKeyboard(events, 'today', 1, 3, '', 'uk');
+    const data = JSON.stringify(kb);
+    expect(data).toContain('Назад');
+    expect(data).toContain('Далі');
+  });
+
+  test('uses Ukrainian categories button with uk locale', () => {
+    const events = [makeEvent('e1')];
+    const kb = buildEventListKeyboard(events, 'cat', 1, 1, '', 'uk');
+    const data = JSON.stringify(kb);
+    expect(data).toContain('Категорії');
   });
 });

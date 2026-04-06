@@ -1,17 +1,31 @@
-import { Bot, Context } from 'grammy';
+import { Bot, Context, GrammyError } from 'grammy';
 import type pg from 'pg';
 import {
   likeEvent, unlikeEvent, getLikedEventsPaginated, countLikedEvents,
 } from '../../db/queries.js';
 import { formatEventList } from '../formatters.js';
 import { PAGE_SIZE } from '../keyboards.js';
+import { t, resolveCtxLocale, type Locale } from '../i18n.js';
+import { createLogger } from '../../utils/logger.js';
 
-async function sendLikesPage(ctx: Context, pool: pg.Pool, userId: number, page: number, edit: boolean = false) {
+const log = createLogger('bot:likes');
+
+/** Edit message, silently ignoring "message is not modified" errors */
+async function safeEdit(ctx: Context, text: string, opts?: Record<string, unknown>) {
+  try {
+    await ctx.editMessageText(text, opts);
+  } catch (err: unknown) {
+    if (err instanceof GrammyError && err.description.includes('not modified')) return;
+    log.error({ err }, 'Failed to edit message');
+  }
+}
+
+async function sendLikesPage(ctx: Context, pool: pg.Pool, userId: number, page: number, locale: Locale, edit: boolean = false) {
   const total = await countLikedEvents(pool, userId);
 
   if (total === 0) {
-    const msg = 'No liked events. Tap \u2764\uFE0F on any event to save it.';
-    if (edit) { try { await ctx.editMessageText(msg); } catch {} }
+    const msg = t(locale, 'likes.empty');
+    if (edit) { await safeEdit(ctx, msg); }
     else { await ctx.reply(msg); }
     return;
   }
@@ -20,8 +34,8 @@ async function sendLikesPage(ctx: Context, pool: pg.Pool, userId: number, page: 
   const safePage = Math.min(page, totalPages);
   const pageEvents = await getLikedEventsPaginated(pool, userId, PAGE_SIZE, (safePage - 1) * PAGE_SIZE);
 
-  const header = `\u2764\uFE0F Your liked events (${total})`;
-  const message = formatEventList(pageEvents, header, safePage, totalPages);
+  const header = t(locale, 'likes.header', { total });
+  const message = formatEventList(pageEvents, header, safePage, totalPages, locale);
 
   // Build keyboard with unlike + share buttons
   const kb = new (await import('grammy')).InlineKeyboard();
@@ -34,14 +48,14 @@ async function sendLikesPage(ctx: Context, pool: pg.Pool, userId: number, page: 
   }
   if (totalPages > 1) {
     kb.row();
-    if (safePage > 1) kb.text('\u00AB Prev', `p:likes:${safePage - 1}:`);
+    if (safePage > 1) kb.text(t(locale, 'keyboard.prev'), `p:likes:${safePage - 1}:`);
     kb.text(`${safePage}/${totalPages}`, 'noop');
-    if (safePage < totalPages) kb.text('Next \u00BB', `p:likes:${safePage + 1}:`);
+    if (safePage < totalPages) kb.text(t(locale, 'keyboard.next'), `p:likes:${safePage + 1}:`);
   }
 
   const opts = { parse_mode: 'HTML' as const, reply_markup: kb, link_preview_options: { is_disabled: true } };
   if (edit) {
-    try { await ctx.editMessageText(message, opts); } catch {}
+    await safeEdit(ctx, message, opts);
   } else {
     await ctx.reply(message, opts);
   }
@@ -51,33 +65,37 @@ export function registerLikesHandlers(bot: Bot, pool: pg.Pool): void {
   bot.command('likes', async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;
-    await sendLikesPage(ctx, pool, userId, 1);
+    const locale = await resolveCtxLocale(ctx, pool);
+    await sendLikesPage(ctx, pool, userId, 1, locale);
   });
 
   // Like event
   bot.callbackQuery(/^like:(.+)$/, async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) { await ctx.answerCallbackQuery(); return; }
+    const locale = await resolveCtxLocale(ctx, pool);
     await likeEvent(pool, userId, ctx.match[1]);
-    await ctx.answerCallbackQuery({ text: '\u2764\uFE0F Saved! View with /likes' });
+    await ctx.answerCallbackQuery({ text: t(locale, 'likes.saved') });
   });
 
   // Unlike event (from /likes view)
   bot.callbackQuery(/^unlike:(.+)$/, async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) { await ctx.answerCallbackQuery(); return; }
+    const locale = await resolveCtxLocale(ctx, pool);
     await unlikeEvent(pool, userId, ctx.match[1]);
-    await ctx.answerCallbackQuery({ text: 'Removed from likes' });
+    await ctx.answerCallbackQuery({ text: t(locale, 'likes.removed') });
     // Re-render likes page
-    await sendLikesPage(ctx, pool, userId, 1, true);
+    await sendLikesPage(ctx, pool, userId, 1, locale, true);
   });
 
   // Likes pagination
   bot.callbackQuery(/^p:likes:(\d+):$/, async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) { await ctx.answerCallbackQuery(); return; }
+    const locale = await resolveCtxLocale(ctx, pool);
     const page = parseInt(ctx.match[1], 10);
-    await sendLikesPage(ctx, pool, userId, page, true);
+    await sendLikesPage(ctx, pool, userId, page, locale, true);
     await ctx.answerCallbackQuery();
   });
 }

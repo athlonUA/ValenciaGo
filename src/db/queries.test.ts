@@ -10,7 +10,6 @@ import {
   getEventStats,
   likeEvent,
   unlikeEvent,
-  getLikedEvents,
   getLikedEventsPaginated,
   countLikedEvents,
   isEventLiked,
@@ -29,7 +28,6 @@ describe('barrel re-exports', () => {
     expect(typeof getEventStats).toBe('function');
     expect(typeof likeEvent).toBe('function');
     expect(typeof unlikeEvent).toBe('function');
-    expect(typeof getLikedEvents).toBe('function');
     expect(typeof getLikedEventsPaginated).toBe('function');
     expect(typeof countLikedEvents).toBe('function');
     expect(typeof isEventLiked).toBe('function');

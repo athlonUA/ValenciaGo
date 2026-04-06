@@ -1,6 +1,7 @@
 import { InlineKeyboard } from 'grammy';
-import { CATEGORIES } from '../types/category.js';
+import { CATEGORIES, getCategoryName } from '../types/category.js';
 import type { StoredEvent } from '../types/index.js';
+import { t, type Locale } from './i18n.js';
 
 // 3 events per page keeps Telegram messages compact (each card is ~5 lines)
 const PAGE_SIZE = 3;
@@ -9,13 +10,13 @@ const PAGE_SIZE = 3;
  * Build the category selection inline keyboard.
  * 3 buttons per row, excludes 'other'.
  */
-export function buildCategoryKeyboard(): InlineKeyboard {
+export function buildCategoryKeyboard(locale: Locale = 'en'): InlineKeyboard {
   const kb = new InlineKeyboard();
   const displayCategories = CATEGORIES.filter(c => c.slug !== 'other');
 
   for (let i = 0; i < displayCategories.length; i++) {
     const cat = displayCategories[i];
-    kb.text(`${cat.emoji} ${cat.nameEn}`, `cat:${cat.slug}`);
+    kb.text(`${cat.emoji} ${getCategoryName(cat, locale)}`, `cat:${cat.slug}`);
     if ((i + 1) % 3 === 0 && i < displayCategories.length - 1) {
       kb.row();
     }
@@ -37,6 +38,7 @@ export function buildEventListKeyboard(
   currentPage: number,
   totalPages: number,
   filter: string = '',
+  locale: Locale = 'en',
 ): InlineKeyboard {
   const kb = new InlineKeyboard();
 
@@ -55,21 +57,21 @@ export function buildEventListKeyboard(
     kb.row();
     const shortFilter = filter.substring(0, 20);
     if (currentPage > 1) {
-      kb.text('« Prev', `p:${command}:${currentPage - 1}:${shortFilter}`);
+      kb.text(t(locale, 'keyboard.prev'), `p:${command}:${currentPage - 1}:${shortFilter}`);
     } else {
-      kb.text('« Prev', 'noop');
+      kb.text(t(locale, 'keyboard.prev'), 'noop');
     }
     kb.text(`${currentPage}/${totalPages}`, 'noop');
     if (currentPage < totalPages) {
-      kb.text('Next »', `p:${command}:${currentPage + 1}:${shortFilter}`);
+      kb.text(t(locale, 'keyboard.next'), `p:${command}:${currentPage + 1}:${shortFilter}`);
     } else {
-      kb.text('Next »', 'noop');
+      kb.text(t(locale, 'keyboard.next'), 'noop');
     }
   }
 
   // Back to categories
   if (command === 'cat') {
-    kb.row().text('« Categories', 'categories');
+    kb.row().text(t(locale, 'keyboard.categories'), 'categories');
   }
 
   return kb;

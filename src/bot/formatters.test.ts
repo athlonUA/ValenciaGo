@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import type { StoredEvent } from '../types/index.js';
 import { EventCategory } from '../types/category.js';
-import { formatEventCard, formatEventList, formatWelcome, formatHelp } from './formatters.js';
+import { formatEventCard, formatEventList, formatWelcome } from './formatters.js';
 
 const sampleEvent: StoredEvent = {
   id: 'test-1',
@@ -103,12 +103,30 @@ describe('formatEventCard', () => {
     expect(card).toMatch(/\w+ \d+ \w+/); // e.g. "Fri 10 Apr"
     expect(card).not.toMatch(/\d+ \w+, \d{1,2}:\d{2}/); // no "10 Apr, 10:00" pattern
   });
+
+  // Ukrainian locale tests
+  test('shows Ukrainian link labels with uk locale', () => {
+    const card = formatEventCard(sampleEvent, 'uk');
+    expect(card).toContain('Карта</a>');
+    expect(card).toContain('Деталі</a>');
+  });
+
+  test('shows "Безкоштовно" for free events in uk locale', () => {
+    const freeEvent = { ...sampleEvent, aiPrice: undefined, isFree: true, priceInfo: undefined };
+    const card = formatEventCard(freeEvent, 'uk');
+    expect(card).toContain('Безкоштовно');
+  });
 });
 
 describe('formatEventList', () => {
   test('shows "No events found" with empty array', () => {
     const result = formatEventList([], 'Today', 1, 1);
     expect(result).toContain('No events found');
+  });
+
+  test('shows Ukrainian "no events" with uk locale', () => {
+    const result = formatEventList([], 'Сьогодні', 1, 1, 'uk');
+    expect(result).toContain('Подій не знайдено');
   });
 
   test('shows header and cards separated by dividers', () => {
@@ -131,21 +149,9 @@ describe('formatWelcome', () => {
     expect(formatWelcome()).not.toContain('/search');
   });
 
-  test('contains /help command', () => {
-    expect(formatWelcome()).toContain('/help');
-  });
-});
-
-describe('formatHelp', () => {
-  test('contains /category command', () => {
-    expect(formatHelp()).toContain('/category');
-  });
-
-  test('contains /likes command', () => {
-    expect(formatHelp()).toContain('/likes');
-  });
-
-  test('contains /stats command', () => {
-    expect(formatHelp()).toContain('/stats');
+  test('contains Ukrainian text with uk locale', () => {
+    const welcome = formatWelcome('uk');
+    expect(welcome).toContain('/today');
+    expect(welcome).toContain('Події сьогодні');
   });
 });

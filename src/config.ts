@@ -14,6 +14,8 @@ export interface Config {
   isProduction: boolean;
 }
 
+const VALID_LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'];
+
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
@@ -23,17 +25,32 @@ function requireEnv(key: string): string {
 }
 
 export function loadConfig(): Config {
+  const databaseUrl = requireEnv('DATABASE_URL');
+  if (!databaseUrl.startsWith('postgres://') && !databaseUrl.startsWith('postgresql://')) {
+    throw new Error('DATABASE_URL must be a valid PostgreSQL connection string (postgres://...)');
+  }
+
+  const logLevel = process.env.LOG_LEVEL || 'info';
+  if (!VALID_LOG_LEVELS.includes(logLevel)) {
+    throw new Error(`LOG_LEVEL must be one of: ${VALID_LOG_LEVELS.join(', ')} (got "${logLevel}")`);
+  }
+
+  const botOwnerId = process.env.BOT_OWNER_ID ? Number(process.env.BOT_OWNER_ID) : undefined;
+  if (botOwnerId !== undefined && isNaN(botOwnerId)) {
+    throw new Error('BOT_OWNER_ID must be a numeric Telegram user ID');
+  }
+
   return {
-    databaseUrl: requireEnv('DATABASE_URL'),
+    databaseUrl,
     telegramBotToken: requireEnv('TELEGRAM_BOT_TOKEN'),
     openaiApiKey: process.env.OPENAI_API_KEY || undefined,
     eventbriteToken: process.env.EVENTBRITE_TOKEN || undefined,
-    botOwnerId: process.env.BOT_OWNER_ID ? Number(process.env.BOT_OWNER_ID) : undefined,
+    botOwnerId,
 
     ingestionCron: process.env.INGESTION_CRON || '0 */6 * * *',
     ingestionEnabled: process.env.INGESTION_ENABLED !== 'false',
     nodeEnv: process.env.NODE_ENV || 'development',
-    logLevel: process.env.LOG_LEVEL || 'info',
+    logLevel,
     isProduction: process.env.NODE_ENV === 'production',
   };
 }

@@ -13,9 +13,10 @@ export {
 export {
   likeEvent,
   unlikeEvent,
-  getLikedEvents,
   getLikedEventsPaginated,
   countLikedEvents,
   isEventLiked,
+  getUserLocale,
+  setUserLocale,
   deleteUserData,
 } from './preferences.js';

@@ -47,6 +47,8 @@ export interface NormalizedEvent {
 export interface StoredEvent extends NormalizedEvent {
   id: string;
   summary?: string;
+  summaryUk?: string;
+  summaryEs?: string;
   emoji?: string;
   aiPrice?: string;
   aiTime?: string;

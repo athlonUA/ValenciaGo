@@ -5,6 +5,7 @@ import { registerMiscHandlers } from './handlers/misc.js';
 import { registerLikesHandlers } from './handlers/likes.js';
 import { registerSearchHandlers } from './handlers/search.js';
 import { registerEventHandlers } from './handlers/events.js';
+import { t, resolveLocale, buildCommandList } from './i18n.js';
 
 const log = createLogger('bot');
 
@@ -29,11 +30,12 @@ export function createBot(token: string, pool: pg.Pool, openaiApiKey?: string, o
     entry.count++;
 
     if (entry.count > RATE_LIMIT_MAX) {
+      const locale = resolveLocale(ctx.from?.language_code);
       if (ctx.callbackQuery) {
-        await ctx.answerCallbackQuery({ text: 'Too many requests. Please wait.' });
+        await ctx.answerCallbackQuery({ text: t(locale, 'rateLimit.callback') });
         return;
       }
-      await ctx.reply('Too many requests. Please wait a moment.');
+      await ctx.reply(t(locale, 'rateLimit.message'));
       return;
     }
     return next();
@@ -47,17 +49,10 @@ export function createBot(token: string, pool: pg.Pool, openaiApiKey?: string, o
     }
   }, 60_000).unref();
 
-  bot.api.setMyCommands([
-    { command: 'today', description: 'Events happening today' },
-    { command: 'tomorrow', description: 'Tomorrow\'s events' },
-    { command: 'weekend', description: 'Saturday & Sunday' },
-    { command: 'week', description: 'Next 7 days' },
-    { command: 'free', description: 'Free events this week' },
-    { command: 'category', description: 'Browse by category' },
-    { command: 'likes', description: 'Your liked events' },
-    { command: 'stats', description: 'Event statistics' },
-    { command: 'help', description: 'Show available commands' },
-  ]);
+  // Register per-language command menus (Telegram shows based on user's app language)
+  bot.api.setMyCommands(buildCommandList('en'));
+  bot.api.setMyCommands(buildCommandList('uk'), { language_code: 'uk' });
+  bot.api.setMyCommands(buildCommandList('es'), { language_code: 'es' });
 
   // Register handlers. Order matters:
   // 1. Command handlers (misc, events) must be registered before the message:text catch-all in search.

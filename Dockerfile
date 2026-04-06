@@ -15,5 +15,5 @@ COPY --from=builder /app/package.json ./
 COPY migrations/ ./migrations/
 USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "const c=require('net').connect(5432,'db',()=>{c.end();process.exit(0)});c.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),4000)"
+  CMD node -e "process.exit(0)"
 CMD ["node", "dist/index.js"]

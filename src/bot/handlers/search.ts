@@ -8,10 +8,11 @@ import type { StoredEvent } from '../../types/index.js';
 import { formatEventList } from '../formatters.js';
 import { buildEventListKeyboard, PAGE_SIZE } from '../keyboards.js';
 import { semanticSearch, cacheResults, getCachedIds } from '../smart-search.js';
+import { t, resolveCtxLocale, type Locale } from '../i18n.js';
 
 const log = createLogger('bot:search');
 
-async function sendSearchResults(ctx: Context, pool: pg.Pool, query: string, page: number) {
+async function sendSearchResults(ctx: Context, pool: pg.Pool, query: string, page: number, locale: Locale) {
   const total = await countSearchEvents(pool, query);
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
   const safePage = Math.min(page, totalPages);
@@ -20,26 +21,26 @@ async function sendSearchResults(ctx: Context, pool: pg.Pool, query: string, pag
   const events = await searchEvents(pool, query, { limit: PAGE_SIZE, offset });
 
   if (events.length === 0) {
-    await ctx.reply(`No events found for "${query}". Try a shorter or different term.`);
+    await ctx.reply(t(locale, 'search.noResults', { query }));
     return;
   }
 
-  const header = `Search: "${query}" (${total} found)`;
-  const message = formatEventList(events, header, safePage, totalPages);
-  const keyboard = buildEventListKeyboard(events, 'search', safePage, totalPages, query);
+  const header = t(locale, 'search.header', { query, count: total });
+  const message = formatEventList(events, header, safePage, totalPages, locale);
+  const keyboard = buildEventListKeyboard(events, 'search', safePage, totalPages, query, locale);
   await ctx.reply(message, { parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } });
 }
 
-async function handleSearchCallback(ctx: Context, pool: pg.Pool, query: string, page: number) {
+async function handleSearchCallback(ctx: Context, pool: pg.Pool, query: string, page: number, locale: Locale) {
   const total = await countSearchEvents(pool, query);
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
   const safePage = Math.min(page, totalPages);
   const offset = (safePage - 1) * PAGE_SIZE;
   const events = await searchEvents(pool, query, { limit: PAGE_SIZE, offset });
 
-  const header = `Search: "${query}" (${total} found)`;
-  const message = formatEventList(events, header, safePage, totalPages);
-  const keyboard = buildEventListKeyboard(events, 'search', safePage, totalPages, query);
+  const header = t(locale, 'search.header', { query, count: total });
+  const message = formatEventList(events, header, safePage, totalPages, locale);
+  const keyboard = buildEventListKeyboard(events, 'search', safePage, totalPages, query, locale);
 
   try {
     await ctx.editMessageText(message, {
@@ -51,12 +52,15 @@ async function handleSearchCallback(ctx: Context, pool: pg.Pool, query: string, 
   }
 }
 
-async function handleSmartSearchPage(ctx: Context, pool: pg.Pool, cacheKey: string, page: number) {
+async function handleSmartSearchPage(ctx: Context, pool: pg.Pool, cacheKey: string, page: number, locale: Locale) {
   const ids = getCachedIds(cacheKey);
   if (!ids || ids.length === 0) {
     try {
-      await ctx.editMessageText('Search results expired. Please search again.');
-    } catch {}
+      await ctx.editMessageText(t(locale, 'search.expired'));
+    } catch (err: unknown) {
+      if (err instanceof GrammyError && err.description.includes('not modified')) return;
+      log.error({ err }, 'Failed to edit expired search message');
+    }
     return;
   }
 
@@ -78,9 +82,9 @@ async function handleSmartSearchPage(ctx: Context, pool: pg.Pool, cacheKey: stri
     }
   }
 
-  const header = `Found ${ids.length} events`;
-  const message = formatEventList(events, header, safePage, totalPages);
-  const keyboard = buildEventListKeyboard(events, 'ss', safePage, totalPages, cacheKey);
+  const header = t(locale, 'search.found', { count: ids.length });
+  const message = formatEventList(events, header, safePage, totalPages, locale);
+  const keyboard = buildEventListKeyboard(events, 'ss', safePage, totalPages, cacheKey, locale);
 
   try {
     await ctx.editMessageText(message, {
@@ -92,9 +96,9 @@ async function handleSmartSearchPage(ctx: Context, pool: pg.Pool, cacheKey: stri
   }
 }
 
-async function smartSearch(ctx: Context, pool: pg.Pool, userMessage: string, apiKey?: string) {
+async function smartSearch(ctx: Context, pool: pg.Pool, userMessage: string, locale: Locale, apiKey?: string) {
   if (!apiKey) {
-    await sendSearchResults(ctx, pool, userMessage, 1);
+    await sendSearchResults(ctx, pool, userMessage, 1, locale);
     return;
   }
 
@@ -103,7 +107,7 @@ async function smartSearch(ctx: Context, pool: pg.Pool, userMessage: string, api
     log.info({ query: userMessage, matches: events.length }, 'Smart search results');
 
     if (events.length === 0) {
-      await ctx.reply(`No events found for "${userMessage}". Try /week or /category to browse.`);
+      await ctx.reply(t(locale, 'search.noResultsSmart', { query: userMessage }));
       return;
     }
 
@@ -112,42 +116,45 @@ async function smartSearch(ctx: Context, pool: pg.Pool, userMessage: string, api
 
     const page = events.slice(0, PAGE_SIZE);
     const totalPages = Math.ceil(events.length / PAGE_SIZE);
-    const header = `Found ${events.length} events`;
-    const message = formatEventList(page, header, 1, totalPages);
+    const header = t(locale, 'search.found', { count: events.length });
+    const message = formatEventList(page, header, 1, totalPages, locale);
     // Use "ss" command with cache key as filter for pagination
-    const keyboard = buildEventListKeyboard(page, 'ss', 1, totalPages, cacheKey);
+    const keyboard = buildEventListKeyboard(page, 'ss', 1, totalPages, cacheKey, locale);
     await ctx.reply(message, { parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } });
   } catch (err) {
     log.error({ err }, 'Smart search error, falling back to text search');
-    await sendSearchResults(ctx, pool, userMessage, 1);
+    await sendSearchResults(ctx, pool, userMessage, 1, locale);
   }
 }
 
 export function registerSearchHandlers(bot: Bot, pool: pg.Pool, openaiApiKey?: string, ownerId?: number, token?: string): void {
   // Search pagination callback
   bot.callbackQuery(/^p:search:(\d+):(.*)$/, async (ctx) => {
+    const locale = await resolveCtxLocale(ctx, pool);
     const page = parseInt(ctx.match[1], 10);
     const filter = ctx.match[2];
-    await handleSearchCallback(ctx, pool, filter, page);
+    await handleSearchCallback(ctx, pool, filter, page, locale);
     await ctx.answerCallbackQuery();
   });
 
   // Smart search pagination callback
   bot.callbackQuery(/^p:ss:(\d+):(.*)$/, async (ctx) => {
+    const locale = await resolveCtxLocale(ctx, pool);
     const page = parseInt(ctx.match[1], 10);
     const filter = ctx.match[2];
-    await handleSmartSearchPage(ctx, pool, filter, page);
+    await handleSmartSearchPage(ctx, pool, filter, page, locale);
     await ctx.answerCallbackQuery();
   });
 
   // Voice messages
   bot.on('message:voice', async (ctx) => {
+    const locale = await resolveCtxLocale(ctx, pool);
     if (!openaiApiKey) {
-      await ctx.reply('Voice search is not configured.');
+      await ctx.reply(t(locale, 'search.voiceNotConfigured'));
       return;
     }
     if (ownerId && ctx.from?.id !== ownerId) {
-      await ctx.reply('Voice search is available to the bot owner only.');
+      await ctx.reply(t(locale, 'search.voiceOwnerOnly'));
       return;
     }
     try {
@@ -155,14 +162,14 @@ export function registerSearchHandlers(bot: Bot, pool: pg.Pool, openaiApiKey?: s
 
       // Validate file size (max 5MB to prevent memory issues)
       if (file.file_size && file.file_size > 5 * 1024 * 1024) {
-        await ctx.reply('Voice message too long. Please keep it under 30 seconds.');
+        await ctx.reply(t(locale, 'search.voiceTooLong'));
         return;
       }
 
       // Validate file is audio (Telegram voice uses .oga/.ogg)
       const filePath = file.file_path ?? '';
       if (filePath && !/\.(oga|ogg|mp3|wav|m4a|opus)$/i.test(filePath)) {
-        await ctx.reply('Unsupported file format. Please send a voice message.');
+        await ctx.reply(t(locale, 'search.voiceUnsupported'));
         return;
       }
 
@@ -182,28 +189,29 @@ export function registerSearchHandlers(bot: Bot, pool: pg.Pool, openaiApiKey?: s
 
       const text = transcription.text?.trim();
       if (!text) {
-        await ctx.reply('Could not understand the voice message. Try again.');
+        await ctx.reply(t(locale, 'search.voiceNotUnderstood'));
         return;
       }
 
-      await ctx.reply(`🎙 "${text}"\n\nSearching...`);
-      await smartSearch(ctx, pool, text, openaiApiKey);
+      await ctx.reply(t(locale, 'search.voiceSearching', { text }));
+      await smartSearch(ctx, pool, text, locale, openaiApiKey);
     } catch (err) {
       log.error({ err }, 'Voice processing error');
-      await ctx.reply('Failed to process voice message. Try typing your search instead.');
+      await ctx.reply(t(locale, 'search.voiceFailed'));
     }
   });
 
   // Text message fallback
   bot.on('message:text', async (ctx) => {
+    const locale = await resolveCtxLocale(ctx, pool);
     const text = ctx.message.text;
     if (text.startsWith('/')) {
-      await ctx.reply('Unknown command. Send /help to see available commands.');
+      await ctx.reply(t(locale, 'search.unknownCommand'));
       return;
     }
     // Treat any text message as a smart search query
     if (openaiApiKey && text.length >= 3 && text.length <= 200) {
-      await smartSearch(ctx, pool, text, openaiApiKey);
+      await smartSearch(ctx, pool, text, locale, openaiApiKey);
     }
   });
 }

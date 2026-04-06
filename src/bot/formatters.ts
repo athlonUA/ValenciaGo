@@ -1,6 +1,7 @@
 import type { StoredEvent } from '../types/index.js';
 import { CATEGORY_MAP } from '../types/category.js';
 import { formatEventDate } from '../utils/dates.js';
+import { t, dateLocale, type Locale } from './i18n.js';
 
 /**
  * Compact event card for Telegram.
@@ -12,8 +13,9 @@ import { formatEventDate } from '../utils/dates.js';
  *   La Rambleta — Map · Details
  *   by Group Name
  */
-export function formatEventCard(event: StoredEvent): string {
+export function formatEventCard(event: StoredEvent, locale: Locale = 'en'): string {
   const lines: string[] = [];
+  const dl = dateLocale(locale);
 
   // Line 1: Emoji + Title
   const emoji = event.emoji || CATEGORY_MAP.get(event.category)?.emoji || '📌';
@@ -27,27 +29,31 @@ export function formatEventCard(event: StoredEvent): string {
   const isPlaceholderTime = madridHour === 0 || madridHour === 12;
   const trustAiTime = event.source !== 'visitvalencia';
   if (isPlaceholderTime && trustAiTime && event.aiTime && event.aiTime !== 'TBD') {
-    const dateOnly = event.startsAt.toLocaleDateString('en-GB', {
+    const dateOnly = event.startsAt.toLocaleDateString(dl, {
       timeZone: 'Europe/Madrid', weekday: 'short', month: 'short', day: 'numeric',
     });
     meta.push(`${dateOnly}, ${event.aiTime}`);
   } else if (isPlaceholderTime && (!trustAiTime || !event.aiTime || event.aiTime === 'TBD')) {
     // No real time available — show date only
-    const dateOnly = event.startsAt.toLocaleDateString('en-GB', {
+    const dateOnly = event.startsAt.toLocaleDateString(dl, {
       timeZone: 'Europe/Madrid', weekday: 'short', month: 'short', day: 'numeric',
     });
     meta.push(dateOnly);
   } else {
-    meta.push(formatEventDate(event.startsAt));
+    meta.push(formatEventDate(event.startsAt, true, dl));
   }
-  // Price: prefer AI-extracted, then original
-  const price = event.aiPrice || (event.isFree ? 'Free' : event.priceInfo ? shortPrice(event.priceInfo) : null);
+  // Price: prefer AI-extracted, then original; skip placeholder values
+  const rawPrice = event.aiPrice && !/^check\b/i.test(event.aiPrice) ? event.aiPrice : null;
+  const price = rawPrice || (event.isFree ? t(locale, 'free') : event.priceInfo ? shortPrice(event.priceInfo) : null);
   if (price) meta.push(esc(price));
   lines.push(meta.join(' · '));
 
-  // Line 3: AI summary (preferred) or cleaned description fallback
-  if (event.summary) {
-    lines.push(`<i>${esc(event.summary)}</i>`);
+  // Line 3: AI summary (preferred, locale-aware) or cleaned description fallback
+  const summary = locale === 'uk' ? (event.summaryUk || event.summary)
+    : locale === 'es' ? (event.summaryEs || event.summary)
+    : event.summary;
+  if (summary) {
+    lines.push(`<i>${esc(summary)}</i>`);
   } else if (event.description) {
     const snippet = cleanSnippet(event.description, event.title, 100);
     if (snippet) {
@@ -59,10 +65,10 @@ export function formatEventCard(event: StoredEvent): string {
   const links: string[] = [];
   if (event.venue) {
     const mapsUrl = buildMapsUrl(event.venue, event.address, event.latitude, event.longitude);
-    links.push(`<a href="${esc(mapsUrl)}">Map</a>`);
+    links.push(`<a href="${esc(mapsUrl)}">${t(locale, 'map')}</a>`);
   }
   if (event.sourceUrl) {
-    links.push(`<a href="${esc(event.sourceUrl)}">Details</a>`);
+    links.push(`<a href="${esc(event.sourceUrl)}">${t(locale, 'details')}</a>`);
   }
   if (links.length) lines.push(links.join(' · '));
 
@@ -74,43 +80,29 @@ export function formatEventList(
   header: string,
   _page: number,
   _totalPages: number,
+  locale: Locale = 'en',
 ): string {
   if (events.length === 0) {
-    return `${header}\n\nNo events found.`;
+    return `${header}\n\n${t(locale, 'noEventsFound')}`;
   }
 
   const divider = '\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n';
-  const cards = events.map(formatEventCard).join(divider);
+  const cards = events.map(e => formatEventCard(e, locale)).join(divider);
   return `<b>${esc(header)}</b>\n\n${cards}`;
 }
 
-export function formatWelcome(): string {
+export function formatWelcome(locale: Locale = 'en'): string {
   return [
-    '<b>Valencia Events</b>',
+    `<b>${t(locale, 'welcome.title')}</b>`,
     '',
-    '/today — Events today',
-    '/tomorrow — Tomorrow',
-    '/weekend — This weekend',
-    '/week — Next 7 days',
-    '/free — Free events',
-    '/category — By category',
-    '/likes — Your saved events',
-    '/help — Commands',
-  ].join('\n');
-}
-
-export function formatHelp(): string {
-  return [
-    '<b>Commands</b>',
-    '',
-    '/today — Events today',
-    '/tomorrow — Tomorrow',
-    '/weekend — Saturday & Sunday',
-    '/week — Next 7 days',
-    '/free — Free events',
-    '/category — Browse by category',
-    '/likes — Your saved events',
-    '/stats — Statistics',
+    t(locale, 'welcome.today'),
+    t(locale, 'welcome.tomorrow'),
+    t(locale, 'welcome.weekend'),
+    t(locale, 'welcome.week'),
+    t(locale, 'welcome.free'),
+    t(locale, 'welcome.category'),
+    t(locale, 'welcome.likes'),
+    t(locale, 'welcome.lang'),
   ].join('\n');
 }
 

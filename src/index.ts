@@ -37,8 +37,19 @@ async function main() {
     log.info('Migrations applied');
   } catch (err) {
     log.error({ err }, 'Migration failed');
+    await closePool();
     process.exit(1);
   }
+
+  // GDPR: clean up settings for users inactive > 6 months
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM user_settings WHERE updated_at < NOW() - INTERVAL '6 months'`,
+    );
+    if (rowCount && rowCount > 0) {
+      log.info({ deleted: rowCount }, 'GDPR: purged inactive user settings');
+    }
+  } catch { /* table may not exist on first run */ }
 
   // Initialize adapters
   const adapters = createAdapters({ eventbriteToken: config.eventbriteToken });

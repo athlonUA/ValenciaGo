@@ -105,7 +105,12 @@ function getMadridOffset(date: Date): number {
     const match = tzPart.value.match(/GMT([+-]\d+)/);
     if (match) return Number(match[1]);
   }
-  return 1; // Default to CET
+  // Fallback: compute offset by comparing UTC and Madrid representations
+  const utcStr = date.toLocaleString('en-CA', { timeZone: 'UTC', hour12: false });
+  const madridStr = date.toLocaleString('en-CA', { timeZone: MADRID_TZ, hour12: false });
+  const utcMs = new Date(utcStr).getTime();
+  const madridMs = new Date(madridStr).getTime();
+  return Math.round((madridMs - utcMs) / 3_600_000);
 }
 
 function formatOffset(hours: number): string {
@@ -161,7 +166,7 @@ export function getWeekRange(): { from: Date; to: Date } {
 }
 
 /** Format a date for display in Telegram messages */
-export function formatEventDate(date: Date, includeDay: boolean = true): string {
+export function formatEventDate(date: Date, includeDay: boolean = true, intlLocale: string = 'en-GB'): string {
   const opts: Intl.DateTimeFormatOptions = {
     timeZone: MADRID_TZ,
     month: 'short',
@@ -173,11 +178,11 @@ export function formatEventDate(date: Date, includeDay: boolean = true): string 
   if (includeDay) {
     opts.weekday = 'short';
   }
-  return date.toLocaleString('en-GB', opts);
+  return date.toLocaleString(intlLocale, opts);
 }
 
-export function formatDateOnly(date: Date): string {
-  return date.toLocaleDateString('en-GB', {
+export function formatDateOnly(date: Date, intlLocale: string = 'en-GB'): string {
+  return date.toLocaleDateString(intlLocale, {
     timeZone: MADRID_TZ,
     weekday: 'long',
     month: 'long',

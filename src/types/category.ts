@@ -21,6 +21,7 @@ export interface CategoryDef {
   slug: EventCategory;
   nameEn: string;
   nameEs: string;
+  nameUk: string;
   emoji: string;
   keywords: string[];
 }
@@ -30,6 +31,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.MUSIC,
     nameEn: 'Music',
     nameEs: 'Música',
+    nameUk: 'Музика',
     emoji: '🎵',
     keywords: [
       'concierto', 'concert', 'musica', 'music', 'dj', 'live',
@@ -43,6 +45,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.ARTS,
     nameEn: 'Art & Exhibitions',
     nameEs: 'Arte y Exposiciones',
+    nameUk: 'Мистецтво та виставки',
     emoji: '🎨',
     keywords: [
       'exposicion', 'exhibition', 'museo', 'museum', 'galeria',
@@ -55,6 +58,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.PERFORMING,
     nameEn: 'Theater & Dance',
     nameEs: 'Teatro y Danza',
+    nameUk: 'Театр та танці',
     emoji: '🎭',
     keywords: [
       'teatro', 'theatre', 'theater', 'obra', 'play', 'danza',
@@ -67,6 +71,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.FESTIVALS,
     nameEn: 'Festivals',
     nameEs: 'Festivales',
+    nameUk: 'Фестивалі',
     emoji: '🎉',
     keywords: [
       'festival', 'feria', 'festes', 'fiestas', 'fallas',
@@ -78,6 +83,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.TECH,
     nameEn: 'Tech',
     nameEs: 'Tecnología',
+    nameUk: 'Технології',
     emoji: '💻',
     keywords: [
       'tech', 'tecnologia', 'programming', 'programacion',
@@ -92,6 +98,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.BUSINESS,
     nameEn: 'Business',
     nameEs: 'Negocios',
+    nameUk: 'Бізнес',
     emoji: '💼',
     keywords: [
       'business', 'negocio', 'profesional', 'professional',
@@ -105,6 +112,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.WORKSHOPS,
     nameEn: 'Workshops & Classes',
     nameEs: 'Talleres y Clases',
+    nameUk: 'Воркшопи та заняття',
     emoji: '🛠️',
     keywords: [
       'taller', 'workshop', 'clase', 'class', 'curso', 'course',
@@ -117,6 +125,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.NETWORKING,
     nameEn: 'Networking',
     nameEs: 'Networking',
+    nameUk: 'Нетворкінг',
     emoji: '🤝',
     keywords: [
       'networking', 'meetup', 'encuentro', 'afterwork',
@@ -128,6 +137,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.EXPAT,
     nameEn: 'Expat & International',
     nameEs: 'Internacional',
+    nameUk: 'Міжнародне',
     emoji: '🌍',
     keywords: [
       'expat', 'international', 'internacional', 'erasmus',
@@ -141,6 +151,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.SPORTS,
     nameEn: 'Sports & Fitness',
     nameEs: 'Deportes',
+    nameUk: 'Спорт та фітнес',
     emoji: '⚽',
     keywords: [
       'deporte', 'sport', 'fitness', 'yoga', 'running', 'carrera',
@@ -154,6 +165,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.NIGHTLIFE,
     nameEn: 'Nightlife',
     nameEs: 'Vida Nocturna',
+    nameUk: 'Нічне життя',
     emoji: '🌙',
     keywords: [
       'fiesta', 'party', 'club', 'discoteca', 'nightclub',
@@ -165,6 +177,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.FOOD,
     nameEn: 'Food & Drink',
     nameEs: 'Gastronomía',
+    nameUk: 'Їжа та напої',
     emoji: '🍽️',
     keywords: [
       'gastronomia', 'gastronomy', 'cata', 'tasting', 'vino',
@@ -177,6 +190,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.FAMILY,
     nameEn: 'Kids & Family',
     nameEs: 'Niños y Familia',
+    nameUk: 'Діти та сім\'я',
     emoji: '👨‍👩‍👧',
     keywords: [
       'ninos', 'kids', 'children', 'familia', 'family',
@@ -188,6 +202,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.CULTURAL,
     nameEn: 'Cultural & Tours',
     nameEs: 'Cultural',
+    nameUk: 'Культура та екскурсії',
     emoji: '🏛️',
     keywords: [
       'cultural', 'cultura', 'heritage', 'patrimonio', 'historia',
@@ -201,6 +216,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.WELLNESS,
     nameEn: 'Wellness',
     nameEs: 'Bienestar',
+    nameUk: 'Велнес',
     emoji: '🧘',
     keywords: [
       'bienestar', 'wellness', 'meditacion', 'meditation',
@@ -213,6 +229,7 @@ export const CATEGORIES: CategoryDef[] = [
     slug: EventCategory.OTHER,
     nameEn: 'Other',
     nameEs: 'Otros',
+    nameUk: 'Інше',
     emoji: '📌',
     keywords: [],
   },
@@ -220,7 +237,19 @@ export const CATEGORIES: CategoryDef[] = [
 
 export const CATEGORY_MAP = new Map(CATEGORIES.map(c => [c.slug, c]));
 
-export function getCategoryDisplay(slug: string): string {
+export function getCategoryName(cat: CategoryDef, locale: 'en' | 'uk' | 'es' = 'en'): string {
+  switch (locale) {
+    case 'uk': return cat.nameUk;
+    case 'es': return cat.nameEs;
+    default: return cat.nameEn;
+  }
+}
+
+export function getCategoryDisplay(slug: string, locale: 'en' | 'uk' | 'es' = 'en'): string {
   const cat = CATEGORY_MAP.get(slug as EventCategory);
-  return cat ? `${cat.emoji} ${cat.nameEn}` : '📌 Other';
+  if (!cat) {
+    const fallback = getCategoryName({ slug: EventCategory.OTHER, nameEn: 'Other', nameEs: 'Otros', nameUk: 'Інше', emoji: '📌', keywords: [] }, locale);
+    return `📌 ${fallback}`;
+  }
+  return `${cat.emoji} ${getCategoryName(cat, locale)}`;
 }

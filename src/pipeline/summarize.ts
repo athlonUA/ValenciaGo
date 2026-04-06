@@ -20,6 +20,8 @@ interface EventRow {
 interface AIResult {
   id: string;
   summary: string;
+  summaryUk: string;
+  summaryEs: string;
   emoji: string;
   price: string;
   time: string;
@@ -34,7 +36,8 @@ export async function summarizeEvents(pool: pg.Pool, apiKey: string): Promise<nu
   const { rows } = await pool.query<EventRow>(
     `SELECT id, title, description, venue, category, price_info, starts_at::text
      FROM events
-     WHERE (summary IS NULL OR emoji IS NULL OR ai_price IS NULL OR ai_time IS NULL)
+     WHERE (summary IS NULL OR summary_uk IS NULL OR summary_es IS NULL
+            OR emoji IS NULL OR ai_price IS NULL OR ai_time IS NULL)
        AND description IS NOT NULL AND length(description) > 20
      ORDER BY starts_at ASC`,
   );
@@ -58,11 +61,13 @@ export async function summarizeEvents(pool: pg.Pool, apiKey: string): Promise<nu
         await dbClient.query(
           `UPDATE events SET
             summary = COALESCE(summary, $1),
-            emoji = COALESCE(emoji, $2),
-            ai_price = $3,
-            ai_time = $4
-          WHERE id = $5`,
-          [r.summary, r.emoji, r.price, r.time, r.id],
+            summary_uk = COALESCE(summary_uk, $2),
+            summary_es = COALESCE(summary_es, $3),
+            emoji = COALESCE(emoji, $4),
+            ai_price = $5,
+            ai_time = $6
+          WHERE id = $7`,
+          [r.summary, r.summaryUk, r.summaryEs, r.emoji, r.price, r.time, r.id],
         );
         total++;
       }
@@ -93,11 +98,13 @@ async function generateBatch(openai: OpenAI, events: EventRow[]): Promise<AIResu
       {
         role: 'system',
         content: `For each event, extract key info and output one line in this exact format:
-ID|emoji|summary|price|time
+ID|emoji|summary_en|summary_uk|summary_es|price|time
 
 Rules:
 - emoji: single emoji matching this specific event (🎸 rock concert, 🧘 yoga, 🍷 wine tasting, etc.)
-- summary: one short English sentence (max 15 words) — what the event IS and why someone would go. No dates/logistics.
+- summary_en: one short English sentence (max 15 words) — what the event IS and why someone would go. No dates/logistics.
+- summary_uk: same summary in Ukrainian (max 15 words).
+- summary_es: same summary in Spanish (max 15 words).
 - price: the actual ticket price from the description. Use format like "Free", "€10", "€15-€25", "From €8". If the description mentions a price but the original says "Free", use the actual price from description. If truly unknown, write "Check details".
 - time: the actual event start time in HH:MM format (24h, Europe/Madrid timezone). Extract from description if it mentions a specific time. If the original time shows 00:00 or 01:00 and the description mentions a real time, use that. If the description lists multiple dates with different times (e.g. a season schedule), write "TBD". If no time info available, write "TBD".`,
       },
@@ -113,15 +120,17 @@ Rules:
     if (!trimmed) continue;
 
     const parts = trimmed.split('|');
-    if (parts.length >= 5) {
+    if (parts.length >= 7) {
       const id = parts[0].replace(/^\d+\.\s*\[?/, '').replace(/\]?\s*$/, '').trim();
       const emoji = parts[1].trim();
       const summary = parts[2].trim().substring(0, 200);
-      const price = parts[3].trim().substring(0, 100);
-      const time = parts[4].trim().substring(0, 50);
+      const summaryUk = parts[3].trim().substring(0, 200);
+      const summaryEs = parts[4].trim().substring(0, 200);
+      const price = parts[5].trim().substring(0, 100);
+      const time = parts[6].trim().substring(0, 50);
       const event = events.find(e => e.id === id);
       if (event && summary.length > 5) {
-        results.push({ id: event.id, summary, emoji, price, time });
+        results.push({ id: event.id, summary, summaryUk, summaryEs, emoji, price, time });
         continue;
       }
     }
@@ -133,13 +142,15 @@ Rules:
     for (let j = 0; j < Math.min(lines.length, events.length); j++) {
       if (results.find(r => r.id === events[j].id)) continue;
       const parts = lines[j].split('|');
-      if (parts.length >= 5) {
+      if (parts.length >= 7) {
         const emoji = parts[1].trim();
         const summary = parts[2].trim().substring(0, 200);
-        const price = parts[3].trim().substring(0, 100);
-        const time = parts[4].trim().substring(0, 50);
+        const summaryUk = parts[3].trim().substring(0, 200);
+        const summaryEs = parts[4].trim().substring(0, 200);
+        const price = parts[5].trim().substring(0, 100);
+        const time = parts[6].trim().substring(0, 50);
         if (summary.length > 5) {
-          results.push({ id: events[j].id, summary, emoji, price, time });
+          results.push({ id: events[j].id, summary, summaryUk, summaryEs, emoji, price, time });
         }
       }
     }

@@ -52,7 +52,8 @@ export async function upsertEvent(pool: Queryable, event: NormalizedEvent): Prom
       event.source, event.sourceId, event.sourceUrl,
       event.title, event.titleNormalized, event.description,
       event.category, event.tags, event.city, event.venue, event.address, event.latitude, event.longitude,
-      event.startsAt.toISOString(), event.endsAt?.toISOString() ?? null,
+      event.startsAt.toISOString(),
+      event.endsAt && event.endsAt > event.startsAt ? event.endsAt.toISOString() : null,
       event.priceInfo, event.isFree,
       event.language, event.imageUrl, event.rawPayload ? JSON.stringify(event.rawPayload) : null, event.contentHash,
     ],
@@ -75,8 +76,8 @@ export async function getEventsInRange(
   to: Date,
   opts?: { category?: string; isFree?: boolean; limit?: number; offset?: number },
 ): Promise<StoredEvent[]> {
-  // Hide events that started more than 30 minutes ago
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  // Hide events that started more than 2 hours ago (so ongoing events still appear)
+  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
   const effectiveFrom = from.toISOString() > cutoff ? from.toISOString() : cutoff;
 
   const params: unknown[] = [effectiveFrom, to.toISOString()];
@@ -191,17 +192,23 @@ export async function getEventStats(pool: Queryable): Promise<{
   sources: Array<{ source: string; count: number }>;
   categories: Array<{ category: string; count: number }>;
 }> {
-  const [totalRes, upcomingRes, sourcesRes, categoriesRes] = await Promise.all([
-    pool.query('SELECT COUNT(*)::int AS count FROM events'),
-    pool.query('SELECT COUNT(*)::int AS count FROM events WHERE starts_at >= NOW()'),
-    pool.query('SELECT source, COUNT(*)::int AS count FROM events GROUP BY source ORDER BY count DESC'),
-    pool.query('SELECT category, COUNT(*)::int AS count FROM events WHERE starts_at >= NOW() GROUP BY category ORDER BY count DESC'),
-  ]);
+  const result = await pool.query(`
+    SELECT
+      (SELECT COUNT(*)::int FROM events) AS total,
+      (SELECT COUNT(*)::int FROM events WHERE starts_at >= NOW()) AS upcoming,
+      (SELECT json_agg(row_to_json(s)) FROM (
+        SELECT source, COUNT(*)::int AS count FROM events GROUP BY source ORDER BY count DESC
+      ) s) AS sources,
+      (SELECT json_agg(row_to_json(c)) FROM (
+        SELECT category, COUNT(*)::int AS count FROM events WHERE starts_at >= NOW() GROUP BY category ORDER BY count DESC
+      ) c) AS categories
+  `);
 
+  const row = result.rows[0];
   return {
-    total: totalRes.rows[0].count,
-    upcoming: upcomingRes.rows[0].count,
-    sources: sourcesRes.rows,
-    categories: categoriesRes.rows,
+    total: row.total,
+    upcoming: row.upcoming,
+    sources: row.sources || [],
+    categories: row.categories || [],
   };
 }

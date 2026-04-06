@@ -15,18 +15,6 @@ export async function unlikeEvent(pool: Queryable, userId: number, eventId: stri
   await pool.query('DELETE FROM liked_events WHERE user_id = $1 AND event_id = $2', [userId, eventId]);
 }
 
-/** @deprecated Use getLikedEventsPaginated + countLikedEvents for paginated access */
-export async function getLikedEvents(pool: Queryable, userId: number): Promise<StoredEvent[]> {
-  const result = await pool.query(
-    `SELECT e.* FROM events e
-     JOIN liked_events l ON e.id = l.event_id
-     WHERE l.user_id = $1
-     ORDER BY e.starts_at ASC`,
-    [userId],
-  );
-  return result.rows.map(rowToStoredEvent);
-}
-
 export async function getLikedEventsPaginated(
   pool: Queryable, userId: number, limit: number, offset: number,
 ): Promise<StoredEvent[]> {
@@ -57,8 +45,27 @@ export async function isEventLiked(pool: Queryable, userId: number, eventId: str
   return (result.rowCount ?? 0) > 0;
 }
 
+// --- User settings ---
+
+export async function getUserLocale(pool: Queryable, userId: number): Promise<string | null> {
+  const result = await pool.query(
+    'SELECT locale FROM user_settings WHERE user_id = $1',
+    [userId],
+  );
+  return result.rows[0]?.locale ?? null;
+}
+
+export async function setUserLocale(pool: Queryable, userId: number, locale: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO user_settings (user_id, locale) VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET locale = $2, updated_at = NOW()`,
+    [userId, locale],
+  );
+}
+
 /** Delete all data associated with a user (GDPR compliance) */
 export async function deleteUserData(pool: Queryable, userId: number): Promise<number> {
+  await pool.query('DELETE FROM user_settings WHERE user_id = $1', [userId]);
   const result = await pool.query(
     'DELETE FROM liked_events WHERE user_id = $1',
     [userId],

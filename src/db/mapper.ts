@@ -26,6 +26,8 @@ export function rowToStoredEvent(row: Record<string, unknown>): StoredEvent {
     rawPayload: row.raw_payload as Record<string, unknown> | undefined,
     contentHash: row.content_hash as string,
     summary: row.summary as string | undefined,
+    summaryUk: row.summary_uk as string | undefined,
+    summaryEs: row.summary_es as string | undefined,
     emoji: row.emoji as string | undefined,
     aiPrice: row.ai_price as string | undefined,
     aiTime: row.ai_time as string | undefined,

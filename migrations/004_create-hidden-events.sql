@@ -8,5 +8,5 @@ CREATE TABLE IF NOT EXISTS hidden_events (
 
 CREATE INDEX idx_hidden_events_user ON hidden_events (user_id);
 
--- Down Migration
-DROP TABLE IF EXISTS liked_events CASCADE;
+-- Down Migration (intentionally disabled — migration 005 renamed this table)
+-- DROP TABLE IF EXISTS hidden_events CASCADE;

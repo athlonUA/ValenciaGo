@@ -70,8 +70,12 @@ export class MeetupAdapter implements SourceAdapter {
     const jsonLdEvents = this.extractFromJsonLd(html);
     let merged = this.mergeEvents(events, jsonLdEvents);
 
+    // Safety limit — prevent unbounded fetching
+    const MAX_EVENTS = 500;
+
     // Fetch additional category pages for broader coverage
     for (const catUrl of CATEGORY_URLS) {
+      if (merged.length >= MAX_EVENTS) break;
       try {
         const catResponse = await axios.get(catUrl, {
           headers: {
