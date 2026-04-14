@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: events
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - db:/var/lib/postgresql/data
     ports:
       - "${DB_PORT:-5432}:5432"
     healthcheck:
@@ -73,5 +73,5 @@ services:
         max-file: "2"
 
 volumes:
-  pgdata:
+  db:
   db-backups:
