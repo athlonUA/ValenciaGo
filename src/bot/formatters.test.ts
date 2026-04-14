@@ -116,6 +116,13 @@ describe('formatEventCard', () => {
     const card = formatEventCard(freeEvent, 'uk');
     expect(card).toContain('Безкоштовно');
   });
+
+  test('localizes aiPrice="Free" to "Безкоштовно" in uk locale', () => {
+    const freeEvent = { ...sampleEvent, aiPrice: 'Free', isFree: false, priceInfo: undefined };
+    const card = formatEventCard(freeEvent, 'uk');
+    expect(card).toContain('Безкоштовно');
+    expect(card).not.toMatch(/·\s*Free/);
+  });
 });
 
 describe('formatEventList', () => {

@@ -1,6 +1,7 @@
 import type { StoredEvent } from '../types/index.js';
 import { CATEGORY_MAP } from '../types/category.js';
 import { formatEventDate } from '../utils/dates.js';
+import { detectFree } from '../utils/normalize.js';
 import { t, dateLocale, type Locale } from './i18n.js';
 
 /**
@@ -42,9 +43,12 @@ export function formatEventCard(event: StoredEvent, locale: Locale = 'en'): stri
   } else {
     meta.push(formatEventDate(event.startsAt, true, dl));
   }
-  // Price: prefer AI-extracted, then original; skip placeholder values
+  // Price: route any "free" synonym through the localized label so digests stay monolingual.
   const rawPrice = event.aiPrice && !/^check\b/i.test(event.aiPrice) ? event.aiPrice : null;
-  const price = rawPrice || (event.isFree ? t(locale, 'free') : event.priceInfo ? shortPrice(event.priceInfo) : null);
+  const isFreePrice = event.isFree || (rawPrice !== null && detectFree(rawPrice));
+  const price = isFreePrice
+    ? t(locale, 'free')
+    : rawPrice ?? (event.priceInfo ? shortPrice(event.priceInfo) : null);
   if (price) meta.push(esc(price));
   lines.push(meta.join(' · '));
 
