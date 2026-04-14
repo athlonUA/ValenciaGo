@@ -54,6 +54,8 @@ services:
       PGDATABASE: valencia_events
     volumes:
       - db-backups:/backups
+    tmpfs:
+      - /var/lib/postgresql/data
     entrypoint: /bin/sh
     command: >
       -c 'while true; do
