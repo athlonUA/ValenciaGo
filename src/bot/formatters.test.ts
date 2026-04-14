@@ -123,6 +123,35 @@ describe('formatEventCard', () => {
     expect(card).toContain('Безкоштовно');
     expect(card).not.toMatch(/·\s*Free/);
   });
+
+  test('renders priceInfo range as localized "from lower" in uk locale', () => {
+    const event = { ...sampleEvent, aiPrice: undefined, priceInfo: '€0.00–€1535.43', isFree: false };
+    const card = formatEventCard(event, 'uk');
+    expect(card).toContain('Від €0');
+    expect(card).not.toContain('€1535.43');
+    expect(card).not.toContain('0.00');
+  });
+
+  test('renders aiPrice range as "From lower" in en locale', () => {
+    const event = { ...sampleEvent, aiPrice: '€15-€25', priceInfo: undefined, isFree: false };
+    const card = formatEventCard(event, 'en');
+    expect(card).toContain('From €15');
+    expect(card).not.toContain('€25');
+  });
+
+  test('leaves single-price aiPrice unchanged', () => {
+    const event = { ...sampleEvent, aiPrice: '€10', priceInfo: undefined, isFree: false };
+    const card = formatEventCard(event, 'uk');
+    expect(card).toContain('€10');
+    expect(card).not.toContain('Від');
+  });
+
+  test('localizes priceInfo range in es locale', () => {
+    const event = { ...sampleEvent, aiPrice: undefined, priceInfo: '€10.00–€30.00', isFree: false };
+    const card = formatEventCard(event, 'es');
+    expect(card).toContain('Desde €10');
+    expect(card).not.toContain('€30');
+  });
 });
 
 describe('formatEventList', () => {

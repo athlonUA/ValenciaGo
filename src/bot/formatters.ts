@@ -43,12 +43,18 @@ export function formatEventCard(event: StoredEvent, locale: Locale = 'en'): stri
   } else {
     meta.push(formatEventDate(event.startsAt, true, dl));
   }
-  // Price: route any "free" synonym through the localized label so digests stay monolingual.
+  // Price: free synonyms → localized label; ranges → localized "from <lower>"; else raw aiPrice or shortened priceInfo.
   const rawPrice = event.aiPrice && !/^check\b/i.test(event.aiPrice) ? event.aiPrice : null;
-  const isFreePrice = event.isFree || (rawPrice !== null && detectFree(rawPrice));
-  const price = isFreePrice
-    ? t(locale, 'free')
-    : rawPrice ?? (event.priceInfo ? shortPrice(event.priceInfo) : null);
+  let price: string | null;
+  if (event.isFree || (rawPrice !== null && detectFree(rawPrice))) {
+    price = t(locale, 'free');
+  } else if (rawPrice) {
+    price = formatPriceRange(rawPrice, locale) ?? rawPrice;
+  } else if (event.priceInfo) {
+    price = formatPriceRange(event.priceInfo, locale) ?? shortPrice(event.priceInfo);
+  } else {
+    price = null;
+  }
   if (price) meta.push(esc(price));
   lines.push(meta.join(' · '));
 
@@ -216,4 +222,12 @@ function shortPrice(price: string): string {
   if (price.length <= 20) return price;
   const match = price.match(/[€$]?\s*\d+(?:[.,]\d+)?\s*(?:EUR|€)?/i);
   return match ? match[0].trim() : price.substring(0, 20) + '...';
+}
+
+/** If price is a range like "€10–€25" or "€0.00-€1535.43", return localized "from <lower>" */
+function formatPriceRange(price: string, locale: Locale): string | null {
+  const match = price.match(/^\s*(?:€|EUR)?\s*(\d+(?:[.,]\d+)?)\s*[–—-]\s*(?:€|EUR)?\s*(\d+(?:[.,]\d+)?)/i);
+  if (!match) return null;
+  const lower = match[1].replace(/[.,]00$/, '');
+  return `${t(locale, 'from')} €${lower}`;
 }

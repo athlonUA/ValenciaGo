@@ -40,6 +40,7 @@ const translations = {
   en: {
     // Formatters
     'free': 'Free',
+    'from': 'From',
     'map': 'Map',
     'details': 'Details',
     'noEventsFound': 'No events found.',
@@ -132,6 +133,7 @@ const translations = {
   uk: {
     // Formatters
     'free': 'Безкоштовно',
+    'from': 'Від',
     'map': 'Карта',
     'details': 'Деталі',
     'noEventsFound': 'Подій не знайдено.',
@@ -224,6 +226,7 @@ const translations = {
   es: {
     // Formatters
     'free': 'Gratis',
+    'from': 'Desde',
     'map': 'Mapa',
     'details': 'Detalles',
     'noEventsFound': 'No se encontraron eventos.',
