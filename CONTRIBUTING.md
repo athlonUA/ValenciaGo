@@ -36,7 +36,7 @@
 
 ### Pull Request Process
 
-1. Create a feature branch from `main`
+1. Create a feature branch from `master`
 2. Make your changes with tests
 3. Ensure `npm run lint` and `npm test` pass
 4. Submit a PR with a clear description
