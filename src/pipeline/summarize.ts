@@ -136,8 +136,8 @@ Rules:
     }
   }
 
-  // Fallback: match by position
-  if (results.length < events.length * 0.5) {
+  // Fallback: match by position for any unmatched events
+  if (results.length < events.length) {
     const lines = text.split('\n').filter(l => l.trim());
     for (let j = 0; j < Math.min(lines.length, events.length); j++) {
       if (results.find(r => r.id === events[j].id)) continue;
