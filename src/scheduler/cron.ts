@@ -12,6 +12,7 @@ export function startScheduler(
   pool: pg.Pool,
   adapters: SourceAdapter[],
   cronExpression: string,
+  openaiApiKey?: string,
 ): cron.ScheduledTask {
   log.info({ cronExpression }, 'Scheduler configured');
 
@@ -25,6 +26,10 @@ export function startScheduler(
     log.info('Scheduled ingestion started');
     try {
       await ingestAll(pool, adapters);
+      if (openaiApiKey) {
+        const { summarizeEvents } = await import('../pipeline/summarize.js');
+        await summarizeEvents(pool, openaiApiKey);
+      }
       // Archive old events (older than 1 year)
       try {
         const result = await pool.query('SELECT archive_old_events(365) AS count');

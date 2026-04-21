@@ -71,7 +71,7 @@ async function main() {
 
   // Start scheduler
   if (config.ingestionEnabled) {
-    startScheduler(pool, adapters, config.ingestionCron);
+    startScheduler(pool, adapters, config.ingestionCron, config.openaiApiKey);
   }
 
   // Start Telegram bot
