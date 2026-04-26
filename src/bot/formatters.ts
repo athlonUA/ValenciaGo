@@ -14,7 +14,7 @@ import { t, dateLocale, type Locale } from './i18n.js';
  *   La Rambleta — Map · Details
  *   by Group Name
  */
-export function formatEventCard(event: StoredEvent, locale: Locale = 'en'): string {
+export function formatEventCard(event: StoredEvent, locale: Locale = 'en', viewDate?: Date): string {
   const lines: string[] = [];
   const dl = dateLocale(locale);
 
@@ -24,10 +24,11 @@ export function formatEventCard(event: StoredEvent, locale: Locale = 'en'): stri
 
   // Line 2: Date/time · Price
   const meta: string[] = [];
-  // Multi-day events that started before today but are still running today should not
-  // display their (now-irrelevant) start date — that confuses users in /today. Show
-  // "Today · last day" or "Today · until DD MMM" instead.
-  const ongoingLabel = formatOngoingDateLabel(event, dl, locale);
+  // Multi-day events use a context-aware label (anchor on the day the user is browsing,
+  // not on the event's now-irrelevant first day). For /tomorrow, viewDate is tomorrow's
+  // midnight Madrid, so a Feria running 24 Apr–3 May shows as "Mon 27 Apr · until 3 May"
+  // when queried from /tomorrow on Sunday.
+  const ongoingLabel = formatOngoingDateLabel(event, dl, locale, viewDate);
   if (ongoingLabel) {
     meta.push(ongoingLabel);
   } else {
@@ -100,13 +101,14 @@ export function formatEventList(
   _page: number,
   _totalPages: number,
   locale: Locale = 'en',
+  viewDate?: Date,
 ): string {
   if (events.length === 0) {
     return `${header}\n\n${t(locale, 'noEventsFound')}`;
   }
 
   const divider = '\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n';
-  const cards = events.map(e => formatEventCard(e, locale)).join(divider);
+  const cards = events.map(e => formatEventCard(e, locale, viewDate)).join(divider);
   return `<b>${esc(header)}</b>\n\n${cards}`;
 }
 
@@ -130,46 +132,54 @@ export function formatWelcome(locale: Locale = 'en'): string {
 const MADRID_TZ = 'Europe/Madrid';
 
 /**
- * For multi-day events whose run is currently underway (start in the past, end in
- * future or today), produce a context-aware date label that anchors on TODAY rather
- * than the now-irrelevant start of the run:
- *   - "Sun, 26 Apr, 20:00 · last day"        — if today is the last day of the run
- *   - "Sun, 26 Apr, 20:00 · until 28 Apr"   — if the run continues past today
- *   - "Sun, 26 Apr · last day"               — same, but no usable time available
- * Returns null for events that aren't already running, so the default code path
- * (start-date-with-weekday) handles them.
+ * For multi-day events that are still relevant (not over yet), produce a context-aware
+ * date label that anchors on the day the viewer is browsing, not on the event's
+ * now-irrelevant first day:
+ *   - "Sun 26 Apr · last day"           — anchor day closes the run
+ *   - "Mon 27 Apr · until 3 May"        — run continues past the anchor day
+ *   - "Sun 26 Apr, 20:00 · last day"    — same, with AI-extracted time
+ *
+ * Anchor = max(viewDate || now, event.startsAt). For /today this is today; for /tomorrow
+ * this is tomorrow's midnight; for upcoming events outside any window, this is the event's
+ * own start. Returns null for single-day events (the default formatter does a better job).
  */
 export function formatOngoingDateLabel(
   event: Pick<StoredEvent, 'startsAt' | 'endsAt' | 'aiTime' | 'source'>,
   dl: string,
   locale: Locale,
+  viewDate?: Date,
 ): string | null {
   if (!event.endsAt) return null;
+
   const now = new Date();
-  // "Already started" = strictly in the past, not "starts later today".
-  if (event.startsAt.getTime() >= now.getTime()) return null;
   // Defensive: skip events already over (the SQL filter should have hidden them, but
-  // guard the formatter in case it's called from a different code path).
+  // this can be called from a card-only path).
   if (event.endsAt.getTime() < now.getTime()) return null;
+  // Single-day events don't need a "until X / last day" suffix — the default formatter
+  // shows their date+time cleanly. The 18-hour threshold avoids treating a long single
+  // session that crosses midnight as multi-day.
+  const runMs = event.endsAt.getTime() - event.startsAt.getTime();
+  if (runMs < 18 * 60 * 60 * 1000) return null;
 
-  const todayStr = now.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });   // YYYY-MM-DD
-  const endStr = event.endsAt.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });
+  // Anchor: first day of the run that the viewer cares about. viewDate (window start
+  // from /today, /tomorrow, /weekend, /week) takes precedence over now; events that
+  // start later than the window use their own start.
+  const viewerAnchor = viewDate ?? now;
+  const anchorMs = Math.max(viewerAnchor.getTime(), event.startsAt.getTime());
+  const anchor = new Date(anchorMs);
 
-  // Today's date, formatted the same way the default code path formats start dates.
-  const todayDate = now.toLocaleDateString(dl, {
+  // Date+time portion (mirrors the default formatter's layout).
+  const anchorDate = anchor.toLocaleDateString(dl, {
     timeZone: MADRID_TZ, weekday: 'short', month: 'short', day: 'numeric',
   });
-
-  // Append AI-extracted time when it's meaningful. Mirrors the trust check from the
-  // default path: visitvalencia always sets noon placeholders, so its aiTime is
-  // unreliable.
   const trustAiTime = event.source !== 'visitvalencia';
   const hasUsefulTime = trustAiTime && event.aiTime && event.aiTime !== 'TBD';
-  const datePart = hasUsefulTime ? `${todayDate}, ${event.aiTime}` : todayDate;
+  const datePart = hasUsefulTime ? `${anchorDate}, ${event.aiTime}` : anchorDate;
 
-  // Suffix: "last day" if today closes the run, otherwise "until <end date>". Wrapped
-  // in <i> so Telegram renders it in italics — visually distinct from the date itself.
-  const suffix = endStr === todayStr
+  // Suffix: italicised so it stands out visually from the date.
+  const anchorStr = anchor.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });
+  const endStr = event.endsAt.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });
+  const suffix = anchorStr === endStr
     ? t(locale, 'lastDay')
     : `${t(locale, 'until')} ${event.endsAt.toLocaleDateString(dl, {
         timeZone: MADRID_TZ, month: 'short', day: 'numeric',

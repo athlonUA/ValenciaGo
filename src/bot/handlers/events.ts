@@ -68,7 +68,7 @@ export async function sendDateEvents(
     return;
   }
 
-  const message = formatEventList(events, header, 1, totalPages, locale);
+  const message = formatEventList(events, header, 1, totalPages, locale, range.from);
   const keyboard = buildEventListKeyboard(events, command, 1, totalPages, filterOpts?.category || '', locale);
   await ctx.reply(message, { parse_mode: 'HTML', reply_markup: keyboard, link_preview_options: { is_disabled: true } });
 }
@@ -88,7 +88,7 @@ async function handlePaginatedCallback(
     ...filterOpts, limit: PAGE_SIZE, offset,
   });
 
-  const message = formatEventList(events, header, safePage, totalPages, locale);
+  const message = formatEventList(events, header, safePage, totalPages, locale, range.from);
   const keyboard = buildEventListKeyboard(events, command, safePage, totalPages, filter, locale);
 
   try {

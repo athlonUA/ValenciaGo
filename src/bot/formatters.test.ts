@@ -249,24 +249,50 @@ describe('formatOngoingDateLabel', () => {
     expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · <i>last day</i>');
   });
 
-  test('returns null when event has not started yet', () => {
+  test('viewDate anchors the displayed day to the queried window (/tomorrow case)', () => {
+    // Today is Sun 26 Apr. /tomorrow → viewDate = Mon 27 Apr 00:00 Madrid.
+    // Event runs Apr 24 → May 3. From Sunday's perspective via /tomorrow, the user
+    // expects the date in the card to read "Mon 27 Apr", not "Sun 26 Apr".
     const event = {
-      startsAt: new Date('2026-04-27T10:00:00Z'), // tomorrow
-      endsAt: new Date('2026-04-30T21:59:00Z'),
+      startsAt: new Date('2026-04-24T10:00:00Z'),
+      endsAt: new Date('2026-05-03T21:59:00Z'),
       aiTime: undefined,
-      source: 'meetup',
+      source: 'visitvalencia',
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
+    const tomorrowMidnightMadrid = new Date('2026-04-26T22:00:00Z'); // Mon 27 Apr 00:00 CEST
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en', tomorrowMidnightMadrid))
+      .toMatch(/^Mon 27 Apr · <i>until \d+ May<\/i>$/);
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk', tomorrowMidnightMadrid))
+      .toMatch(/^пн, 27 квіт\. · <i>до /);
   });
 
-  test('returns null when event has no endsAt (single-day, default formatter handles it)', () => {
+  test('viewDate does not push anchor backwards before event start', () => {
+    // /this_week (range_from = Mon) but event starts Wed → anchor should be Wed, not Mon.
     const event = {
-      startsAt: new Date('2026-04-25T10:00:00Z'),
-      endsAt: undefined,
+      startsAt: new Date('2026-04-29T10:00:00Z'), // Wed 29 Apr
+      endsAt: new Date('2026-05-03T21:59:00Z'),
       aiTime: undefined,
-      source: 'meetup',
+      source: 'visitvalencia',
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
+    const mondayMadrid = new Date('2026-04-26T22:00:00Z'); // Mon 27 Apr 00:00 CEST
+    const label = formatOngoingDateLabel(event, 'en-GB', 'en', mondayMadrid);
+    expect(label).toMatch(/^Wed 29 Apr · /);
+  });
+
+  test('returns null for short-run single-day events (no endsAt or run <18h)', () => {
+    expect(formatOngoingDateLabel(
+      { startsAt: new Date('2026-04-25T10:00:00Z'), endsAt: undefined, aiTime: undefined, source: 'meetup' },
+      'en-GB', 'en',
+    )).toBeNull();
+    // Run = 12h
+    expect(formatOngoingDateLabel(
+      {
+        startsAt: new Date('2026-04-26T10:00:00Z'),
+        endsAt: new Date('2026-04-26T22:00:00Z'),
+        aiTime: undefined, source: 'visitvalencia',
+      },
+      'en-GB', 'en',
+    )).toBeNull();
   });
 
   test('returns null when event already ended (defensive)', () => {
