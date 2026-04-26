@@ -71,6 +71,28 @@ export function parseEventDate(raw: string): Date {
   throw new Error(`Cannot parse date: "${raw}"`);
 }
 
+/**
+ * Convert a DD/MM/YYYY date into an ISO 8601 string anchored to the Europe/Madrid offset
+ * for that exact day. Use this when the source carries date-only info — anchoring at
+ * noon avoids day rollover when the container runs in UTC. Uses Intl-aware offset detection
+ * so DST boundaries (last Sun of March / October) are handled correctly, not approximated
+ * by month.
+ */
+export function ddmmyyyyToMadridIso(date: string, hour: number = 12, minute: number = 0): string {
+  const [day, month, year] = date.split('/');
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  // Build a proxy Date at noon UTC on that day. DST transitions in Europe/Madrid happen
+  // at 02:00/03:00 local — a noon proxy always lands unambiguously on one side of the
+  // boundary, so getMadridOffset returns the correct offset for noon-local on this date.
+  const proxy = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  const offset = formatOffset(getMadridOffset(proxy));
+  const hh = String(hour).padStart(2, '0');
+  const mm = String(minute).padStart(2, '0');
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${hh}:${mm}:00${offset}`;
+}
+
 // --- Date range helpers (Europe/Madrid) ---
 
 const MADRID_TZ = 'Europe/Madrid';

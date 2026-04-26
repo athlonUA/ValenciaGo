@@ -7,10 +7,12 @@ Event discovery platform for Valencia, Spain. Aggregates events from multiple pu
 ```mermaid
 graph LR
   subgraph Sources
-    VV["Visit Valencia<br/>(web scraping)"]
+    VV["Visit Valencia<br/>(/agenda-valencia, ES)"]
     MU["Meetup<br/>(__NEXT_DATA__)"]
     EB["Eventbrite<br/>(API, optional)"]
     VCF["Valencia CF<br/>(web scraping)"]
+    IVC["IVC Generalitat<br/>(.actividad cards)"]
+    VES["Ayuntamiento València<br/>(disabled — needs JS runtime)"]
   end
 
   subgraph Pipeline
@@ -29,8 +31,21 @@ graph LR
   MU --> F
   EB --> F
   VCF --> F
+  IVC --> F
+  VES -.disabled.-> F
   S --> BOT
 ```
+
+### Source Adapters
+
+| Adapter | Coverage | Status | Notes |
+|---|---|---|---|
+| `visitvalencia` | Tourism board, festivals, exhibitions | ✅ enabled | Spanish listing (`/agenda-valencia`) — ~2× more events than EN |
+| `meetup` | Social, networking, hobby groups | ✅ enabled | Scrapes `__NEXT_DATA__` + JSON-LD |
+| `eventbrite` | Workshops, paid events, gastromarkets | ✅ optional | Two-pass search (all + `price=free`); requires `EVENTBRITE_TOKEN` |
+| `valenciacf` | Football matches | ✅ enabled | HTML scrape of fixtures |
+| `ivc` | Generalitat cultural programming (Teatre Principal, Rialto, Filmoteca) | ✅ enabled | Filters out non-València-city venues |
+| `valenciaes` | Ayuntamiento agenda (TastArròs, Fiestas, library programming) | ⚠️ disabled | Listing is rendered by a Liferay portlet that requires JS — re-enable once a headless runtime is added or the portlet's resource-phase JSON is reverse-engineered |
 
 ### Data Flow
 

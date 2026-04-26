@@ -2,9 +2,9 @@ import { describe, test, expect } from 'vitest';
 import { createAdapters } from './registry.js';
 
 describe('createAdapters', () => {
-  test('returns 4 adapters', () => {
+  test('returns 6 adapters', () => {
     const adapters = createAdapters({});
-    expect(adapters).toHaveLength(4);
+    expect(adapters).toHaveLength(6);
   });
 
   test('all adapters have name and fetchEvents', () => {
@@ -18,7 +18,7 @@ describe('createAdapters', () => {
   test('includes all expected adapter names', () => {
     const adapters = createAdapters({});
     const names = adapters.map(a => a.name).sort();
-    expect(names).toEqual(['eventbrite', 'meetup', 'valenciacf', 'visitvalencia']);
+    expect(names).toEqual(['eventbrite', 'ivc', 'meetup', 'valenciacf', 'valenciaes', 'visitvalencia']);
   });
 
   test('eventbrite disabled without token', () => {
@@ -33,10 +33,11 @@ describe('createAdapters', () => {
     expect(eb?.enabled).toBe(true);
   });
 
-  test('non-eventbrite adapters are always enabled', () => {
+  test('non-eventbrite, non-valenciaes adapters are always enabled', () => {
+    // valenciaes is currently disabled (Liferay portlet requires JS execution).
     const adapters = createAdapters({});
-    const others = adapters.filter(a => a.name !== 'eventbrite');
-    expect(others).toHaveLength(3);
+    const others = adapters.filter(a => a.name !== 'eventbrite' && a.name !== 'valenciaes');
+    expect(others).toHaveLength(4);
     for (const adapter of others) {
       expect(adapter.enabled).toBe(true);
     }

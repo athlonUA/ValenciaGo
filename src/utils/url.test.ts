@@ -38,6 +38,28 @@ describe('isAllowedUrl', () => {
     expect(isAllowedUrl('https://valenciacf.com/results', 'valenciacf')).toBe(true);
   });
 
+  // --- valenciaes ---
+  test('allows valencia.es agenda detail page', () => {
+    expect(isAllowedUrl('https://www.valencia.es/cas/agenda-de-la-ciudad/-/content/tastarros-2026', 'valenciaes')).toBe(true);
+  });
+
+  test('allows valencia.es without www', () => {
+    expect(isAllowedUrl('https://valencia.es/anything', 'valenciaes')).toBe(true);
+  });
+
+  test('rejects unrelated host for valenciaes', () => {
+    expect(isAllowedUrl('https://valencia.evil.com/agenda', 'valenciaes')).toBe(false);
+  });
+
+  // --- ivc ---
+  test('allows ivc.gva.es agenda detail page', () => {
+    expect(isAllowedUrl('https://ivc.gva.es/es/ivc/agenda-ivc/example-event', 'ivc')).toBe(true);
+  });
+
+  test('rejects unrelated gva.es subdomain for ivc', () => {
+    expect(isAllowedUrl('https://www.gva.es/somethingelse', 'ivc')).toBe(false);
+  });
+
   // --- rejection cases ---
   test('rejects unknown domain for meetup source', () => {
     expect(isAllowedUrl('https://evil.com/hack', 'meetup')).toBe(false);

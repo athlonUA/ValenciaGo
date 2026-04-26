@@ -31,6 +31,7 @@ export async function upsertEvent(pool: Queryable, event: NormalizedEvent): Prom
       NOW()
     )
     ON CONFLICT (source, source_id) DO UPDATE SET
+      source_url = EXCLUDED.source_url,
       title = EXCLUDED.title,
       title_normalized = EXCLUDED.title_normalized,
       description = COALESCE(EXCLUDED.description, events.description),
@@ -39,9 +40,15 @@ export async function upsertEvent(pool: Queryable, event: NormalizedEvent): Prom
       venue = COALESCE(EXCLUDED.venue, events.venue),
       address = COALESCE(EXCLUDED.address, events.address),
       starts_at = EXCLUDED.starts_at,
-      ends_at = COALESCE(EXCLUDED.ends_at, events.ends_at),
+      -- Preserve enriched ends_at via COALESCE; only drop it when keeping the old value
+      -- would violate chk_events_end_after_start (i.e. new start is at/after old end).
+      ends_at = CASE
+        WHEN events.ends_at IS NOT NULL AND EXCLUDED.starts_at >= events.ends_at THEN EXCLUDED.ends_at
+        ELSE COALESCE(EXCLUDED.ends_at, events.ends_at)
+      END,
       price_info = COALESCE(EXCLUDED.price_info, events.price_info),
       is_free = EXCLUDED.is_free,
+      language = EXCLUDED.language,
       image_url = COALESCE(EXCLUDED.image_url, events.image_url),
       content_hash = EXCLUDED.content_hash,
       ai_time = CASE WHEN EXCLUDED.starts_at != events.starts_at THEN NULL ELSE events.ai_time END,

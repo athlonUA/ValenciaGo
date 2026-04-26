@@ -16,7 +16,14 @@ const VALENCIA_BBOX = {
   right: -0.25,
 };
 
-const MAX_PAGES = 5;
+const MAX_PAGES = 10;
+// Eventbrite ranks paid/promoted listings first by default. Public free events (city
+// festivals, gastromarkets) often sit below the cut-off. We do a second pass with
+// price='free' to surface them, and merge by event ID.
+const SEARCH_PASSES: Array<{ label: string; price?: 'free' }> = [
+  { label: 'all' },
+  { label: 'free', price: 'free' },
+];
 
 interface EBEvent {
   id: number;
@@ -69,16 +76,34 @@ export class EventbriteAdapter implements SourceAdapter {
     if (!this.enabled) return [];
 
     log.info('Fetching events via destination/search API');
-    const events: RawEvent[] = [];
+    const byId = new Map<string, RawEvent>();
+
+    for (const pass of SEARCH_PASSES) {
+      const before = byId.size;
+      await this.fetchPass(pass.price, byId);
+      log.info({ pass: pass.label, added: byId.size - before, total: byId.size }, 'Pass complete');
+    }
+
+    const events = Array.from(byId.values());
+    log.info({ count: events.length }, 'Fetched events, enriching with details');
+    await this.enrichWithDetails(events);
+    return events;
+  }
+
+  private async fetchPass(price: 'free' | undefined, byId: Map<string, RawEvent>): Promise<void> {
     let continuation: string | undefined;
 
     for (let page = 0; page < MAX_PAGES; page++) {
       try {
+        const eventSearch: Record<string, unknown> = {
+          dates: 'current_future',
+          bbox: VALENCIA_BBOX,
+        };
+        if (price) eventSearch.price = price;
+        if (continuation) eventSearch.continuation = continuation;
+
         const body: Record<string, unknown> = {
-          event_search: {
-            dates: 'current_future',
-            bbox: VALENCIA_BBOX,
-          },
+          event_search: eventSearch,
           'expand.destination_event': [
             'primary_venue',
             'ticket_availability',
@@ -86,10 +111,6 @@ export class EventbriteAdapter implements SourceAdapter {
             'image',
           ],
         };
-
-        if (continuation) {
-          (body.event_search as Record<string, unknown>).continuation = continuation;
-        }
 
         const response = await axios.post(SEARCH_URL, body, {
           headers: {
@@ -104,27 +125,23 @@ export class EventbriteAdapter implements SourceAdapter {
         if (!results || results.length === 0) break;
 
         for (const evt of results) {
-          events.push(this.toRawEvent(evt));
+          const id = String(evt.id);
+          if (!byId.has(id)) byId.set(id, this.toRawEvent(evt));
         }
 
-        // Pagination
         continuation = data?.events?.pagination?.continuation;
         if (!continuation) break;
 
-        log.info({ page: page + 1, pageResults: results.length, total: events.length }, 'Page fetched');
+        log.info({ price: price ?? 'all', page: page + 1, pageResults: results.length, total: byId.size }, 'Page fetched');
       } catch (err) {
         if (axios.isAxiosError(err)) {
-          log.error({ status: err.response?.status }, 'API error');
+          log.error({ price: price ?? 'all', status: err.response?.status }, 'API error');
         } else {
-          log.error({ err }, 'Fetch error');
+          log.error({ price: price ?? 'all', err }, 'Fetch error');
         }
         break;
       }
     }
-
-    log.info({ count: events.length }, 'Fetched events, enriching with details');
-    await this.enrichWithDetails(events);
-    return events;
   }
 
   /** Fetch individual event details for accurate start time and description */

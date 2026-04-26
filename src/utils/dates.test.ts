@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   parseEventDate,
+  ddmmyyyyToMadridIso,
   getTodayRange,
   getTomorrowRange,
   getWeekRange,
@@ -63,6 +64,48 @@ describe('parseEventDate', () => {
 
   test('throws for invalid date string', () => {
     expect(() => parseEventDate('not a date')).toThrow('Cannot parse date');
+  });
+});
+
+describe('ddmmyyyyToMadridIso', () => {
+  test('uses CEST (+02:00) for July', () => {
+    expect(ddmmyyyyToMadridIso('15/07/2026')).toBe('2026-07-15T12:00:00+02:00');
+  });
+
+  test('uses CET (+01:00) for January', () => {
+    expect(ddmmyyyyToMadridIso('15/01/2026')).toBe('2026-01-15T12:00:00+01:00');
+  });
+
+  test('handles late-March DST transition correctly (CEST already)', () => {
+    // 2026 DST switch: last Sunday of March = March 29. Days 30-31 are CEST.
+    // Naive month-only logic would say "March = CET" which is wrong here.
+    expect(ddmmyyyyToMadridIso('30/03/2026')).toBe('2026-03-30T12:00:00+02:00');
+    expect(ddmmyyyyToMadridIso('31/03/2026')).toBe('2026-03-31T12:00:00+02:00');
+  });
+
+  test('handles late-October DST transition correctly (CET already)', () => {
+    // 2026 DST end: last Sunday of October = October 25. Days 26-31 are CET.
+    // Naive month-only logic would say "October = CEST" which is wrong here.
+    expect(ddmmyyyyToMadridIso('26/10/2026')).toBe('2026-10-26T12:00:00+01:00');
+    expect(ddmmyyyyToMadridIso('31/10/2026')).toBe('2026-10-31T12:00:00+01:00');
+  });
+
+  test('zero-pads single-digit day and month', () => {
+    expect(ddmmyyyyToMadridIso('5/8/2026')).toBe('2026-08-05T12:00:00+02:00');
+  });
+
+  test('respects custom hour and minute', () => {
+    expect(ddmmyyyyToMadridIso('10/06/2026', 19, 30)).toBe('2026-06-10T19:30:00+02:00');
+  });
+
+  test('round-trips through parseEventDate to a valid Date', () => {
+    const iso = ddmmyyyyToMadridIso('15/07/2026');
+    const d = parseEventDate(iso);
+    expect(d.toISOString()).toBe('2026-07-15T10:00:00.000Z'); // 12:00 CEST = 10:00 UTC
+  });
+
+  test('leap year Feb 29 is preserved', () => {
+    expect(ddmmyyyyToMadridIso('29/02/2028')).toBe('2028-02-29T12:00:00+01:00');
   });
 });
 

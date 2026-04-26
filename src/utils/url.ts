@@ -3,6 +3,8 @@ const ALLOWED_DOMAINS: Record<string, string[]> = {
   meetup: ['www.meetup.com', 'meetup.com'],
   eventbrite: ['www.eventbrite.com', 'www.eventbrite.es', 'www.eventbriteapi.com', 'eventbrite.com', 'eventbrite.es'],
   valenciacf: ['www.valenciacf.com', 'valenciacf.com'],
+  valenciaes: ['www.valencia.es', 'valencia.es'],
+  ivc: ['ivc.gva.es'],
 };
 
 export function isAllowedUrl(url: string, source: string): boolean {

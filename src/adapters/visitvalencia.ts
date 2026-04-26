@@ -4,14 +4,14 @@ import type { SourceAdapter, RawEvent } from '../types/index.js';
 import { isAllowedUrl } from '../utils/url.js';
 import { mapWithConcurrency } from '../utils/concurrency.js';
 import { createLogger } from '../utils/logger.js';
+import { ddmmyyyyToMadridIso } from '../utils/dates.js';
 
 const log = createLogger('visitvalencia');
 
 const BASE_URL = 'https://www.visitvalencia.com';
-const LISTING_URL = `${BASE_URL}/en/events-valencia`;
-
-// Visit Valencia category IDs to our internal mapping hints (reserved for future per-source classification)
-// const VV_CATEGORIES: Record<string, string> = { exhibitions: 'arts', music: 'music', ... };
+// The Spanish listing carries ~2× more events than the English one — many municipal
+// festivals (e.g. TastArròs, FestIN) are only translated to ES.
+const LISTING_URL = `${BASE_URL}/agenda-valencia`;
 
 export class VisitValenciaAdapter implements SourceAdapter {
   readonly name = 'visitvalencia';
@@ -61,7 +61,7 @@ export class VisitValenciaAdapter implements SourceAdapter {
     const response = await axios.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; ValenciaEventsBot/1.0)',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Language': 'es-ES,es;q=0.9',
       },
       timeout: 15000,
     });
@@ -96,9 +96,13 @@ export class VisitValenciaAdapter implements SourceAdapter {
     // Ensure full URL
     const sourceUrl = eventPath.startsWith('http') ? eventPath : `${BASE_URL}${eventPath}`;
 
-    // Source ID: use node ID or URL slug
+    // Source ID: use node ID or URL slug. Strip both ES and legacy EN prefixes so that
+    // an event seen via either listing maps to the same sourceId.
     const nodeId = card.attr('data-history-node-id') || '';
-    const sourceId = nodeId || eventPath.replace(/^\/en\/events-valencia\//, '').replace(/\/$/, '');
+    const sourceId = nodeId || eventPath
+      .replace(/^\/agenda-valencia\//, '')
+      .replace(/^\/en\/events-valencia\//, '')
+      .replace(/\/$/, '');
 
     // Date parsing
     const dateText = card.find('.card__date').text().trim();
@@ -122,7 +126,7 @@ export class VisitValenciaAdapter implements SourceAdapter {
       endsAt: endDate || undefined,
       sourceUrl,
       imageUrl,
-      language: 'en',
+      language: 'es',
       priceInfo: undefined, // Not available on listing cards
       rawPayload: {
         category: categoryTag || undefined,
@@ -147,7 +151,7 @@ export class VisitValenciaAdapter implements SourceAdapter {
           const response = await axios.get(event.sourceUrl, {
             headers: {
               'User-Agent': 'Mozilla/5.0 (compatible; ValenciaEventsBot/1.0)',
-              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept-Language': 'es-ES,es;q=0.9',
             },
             timeout: 10000,
           });
@@ -160,22 +164,15 @@ export class VisitValenciaAdapter implements SourceAdapter {
             event.description = bodyText.substring(0, 2000);
           }
 
-          // Price from detail info
-          const detailItems = $('.more-info--details .list-item');
-          detailItems.each((_, el) => {
+          // Price + venue from detail info. Labels differ by locale (price/precio, place/lugar).
+          $('.more-info--details .list-item').each((_, el) => {
             const label = $(el).find('b').text().trim().toLowerCase();
             const value = $(el).find('p').text().trim();
-            if (label.includes('price') && value) {
+            if (!value) return;
+            if (label.includes('price') || label.includes('precio')) {
               event.priceInfo = value.substring(0, 200);
-            }
-          });
-
-          // Venue from detail info
-          detailItems.each((_, el) => {
-            const label = $(el).find('b').text().trim().toLowerCase();
-            const value = $(el).find('p').text().trim();
-            if (label.includes('place') && value && !event.venue) {
-              event.venue = value;
+            } else if ((label.includes('place') || label.includes('lugar')) && !event.venue) {
+              event.venue = value.substring(0, 500);
             }
           });
 
@@ -193,19 +190,21 @@ export class VisitValenciaAdapter implements SourceAdapter {
   private parseDateRange(text: string): { startDate: string | null; endDate: string | null } {
     if (!text) return { startDate: null, endDate: null };
 
-    // Clean up the text
+    // Collapse whitespace first so multi-line "Del\n  DD/MM/YYYY\n  al  DD/MM/YYYY" cards parse.
+    // Strip leading "From"/"Del" and replace inner " to "/" al " with a pipe separator. Use word
+    // boundaries — a bare /to/ would match inside numbers like "october" or "2024".
     const cleaned = text
-      .replace(/From\s*/i, '')
-      .replace(/to\s*/i, '|')
       .replace(/\s+/g, ' ')
-      .trim();
+      .trim()
+      .replace(/^(From|Del)\s+/i, '')
+      .replace(/\s+(to|al)\s+/i, ' | ');
 
     // Range: "DD/MM/YYYY | DD/MM/YYYY"
     const rangeMatch = cleaned.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*\|\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
     if (rangeMatch) {
       return {
-        startDate: this.ddmmyyyyToISO(rangeMatch[1]),
-        endDate: this.ddmmyyyyToISO(rangeMatch[2]),
+        startDate: ddmmyyyyToMadridIso(rangeMatch[1]),
+        endDate: ddmmyyyyToMadridIso(rangeMatch[2]),
       };
     }
 
@@ -213,21 +212,11 @@ export class VisitValenciaAdapter implements SourceAdapter {
     const singleMatch = cleaned.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
     if (singleMatch) {
       return {
-        startDate: this.ddmmyyyyToISO(singleMatch[1]),
+        startDate: ddmmyyyyToMadridIso(singleMatch[1]),
         endDate: null,
       };
     }
 
     return { startDate: null, endDate: null };
-  }
-
-  private ddmmyyyyToISO(date: string): string {
-    const [day, month, year] = date.split('/');
-    const m = Number(month);
-    // Use noon to safely land on the correct day regardless of CET/CEST
-    // CEST (UTC+2): last Sunday of March → last Sunday of October
-    // CET  (UTC+1): rest of the year
-    const offset = (m >= 4 && m <= 10) ? '+02:00' : '+01:00';
-    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T12:00:00${offset}`;
   }
 }
