@@ -182,8 +182,8 @@ export const CATEGORIES: CategoryDef[] = [
     keywords: [
       'gastronomia', 'gastronomy', 'cata', 'tasting', 'vino',
       'wine', 'cerveza', 'beer', 'cocina', 'cooking', 'paella',
-      'tapas', 'chef', 'food truck', 'mercado', 'market',
-      'degustacion', 'horchata', 'vermut', 'cocktail', 'coctel',
+      'arroz', 'rice', 'tapas', 'chef', 'food truck', 'mercado',
+      'market', 'degustacion', 'horchata', 'vermut', 'cocktail', 'coctel',
     ],
   },
   {

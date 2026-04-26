@@ -37,6 +37,9 @@
 - Extracted search WHERE clause helper (DRY)
 
 ### Fixed
+- **Multi-day events stay visible until they truly end.** Bot queries (`getEventsInRange`, `countEventsInRange`, `searchEvents`) now use a range-overlap predicate (`starts_at < to AND COALESCE(ends_at, starts_at) >= from`) instead of `starts_at`-only filtering. Festivals like TastArròs (Apr 25–26) now surface in `/today` on every day of the run, not just day one
+- Visit Valencia date-range parser anchors the END date at 23:59 Madrid (was noon) so a 2-day festival's `ends_at` reflects the actual close-of-day, not midday
+- Added `arroz` and `rice` to the `food-drink` classifier vocabulary so events like TastArròs ("la gran fiesta del arroz") classify as food rather than nightlife on the strength of the word "fiesta"
 - IVC "hasta el …" ongoing events no longer self-invalidate: `startsAt` is anchored to start-of-day Madrid and `endsAt` to end-of-day Madrid, so re-ingest in the evening of the run's last day no longer trips `chk_events_end_after_start`
 - IVC `sourceId` now includes the parent path segment (e.g. `pelicula-742/<slug>`); without this, two films with the same trailing slug from different `pelicula-NNNN` buckets would collide on the unique constraint
 - IVC detail-page description extraction (`.resumen` + `.bloque-textos` body); the previous selector list (`.descripcion, .contenido-actividad, ...`) matched nothing on the real DOM

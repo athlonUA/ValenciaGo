@@ -199,12 +199,14 @@ export class VisitValenciaAdapter implements SourceAdapter {
       .replace(/^(From|Del)\s+/i, '')
       .replace(/\s+(to|al)\s+/i, ' | ');
 
-    // Range: "DD/MM/YYYY | DD/MM/YYYY"
+    // Range: "DD/MM/YYYY | DD/MM/YYYY". The END date anchors at 23:59 so a multi-day
+    // festival like TastArròs (Del 25/04 al 26/04) stays visible in /today queries the
+    // entire day it ends, not just until noon.
     const rangeMatch = cleaned.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*\|\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
     if (rangeMatch) {
       return {
         startDate: ddmmyyyyToMadridIso(rangeMatch[1]),
-        endDate: ddmmyyyyToMadridIso(rangeMatch[2]),
+        endDate: ddmmyyyyToMadridIso(rangeMatch[2], 23, 59),
       };
     }
 

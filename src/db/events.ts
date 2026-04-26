@@ -83,12 +83,16 @@ export async function getEventsInRange(
   to: Date,
   opts?: { category?: string; isFree?: boolean; limit?: number; offset?: number },
 ): Promise<StoredEvent[]> {
-  // Hide events that started more than 2 hours ago (so ongoing events still appear)
+  // 2-hour grace period so ongoing single-day events stay in /today after they begin,
+  // and multi-day events stay visible until they actually end.
   const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
   const effectiveFrom = from.toISOString() > cutoff ? from.toISOString() : cutoff;
 
   const params: unknown[] = [effectiveFrom, to.toISOString()];
-  let where = 'WHERE starts_at >= $1 AND starts_at < $2';
+  // Range-overlap predicate: event starts before window ends AND its effective end (or
+  // start, when ends_at is unknown) is still in/after the window. This keeps multi-day
+  // festivals like TastArròs visible on every day of the run, not just day one.
+  let where = 'WHERE starts_at < $2 AND COALESCE(ends_at, starts_at) >= $1';
   let idx = 3;
 
   if (opts?.category) {
@@ -121,7 +125,8 @@ export async function countEventsInRange(
   const effectiveFrom = from.toISOString() > cutoff ? from.toISOString() : cutoff;
 
   const params: unknown[] = [effectiveFrom, to.toISOString()];
-  let where = 'WHERE starts_at >= $1 AND starts_at < $2';
+  // Same range-overlap predicate as getEventsInRange — counts must agree with the page.
+  let where = 'WHERE starts_at < $2 AND COALESCE(ends_at, starts_at) >= $1';
   let idx = 3;
 
   if (opts?.category) {
@@ -139,8 +144,10 @@ export async function countEventsInRange(
 
 // Shared WHERE clause for search queries (ILIKE + trigram + FTS)
 // Similarity threshold 0.15: low enough to catch typos, high enough to avoid noise
+// Includes ongoing multi-day events: an event is "current" if its effective end
+// (ends_at, or starts_at + 2h grace if ends_at is null) is still in the future.
 const SEARCH_WHERE = `
-  starts_at >= NOW()
+  COALESCE(ends_at, starts_at + INTERVAL '2 hours') >= NOW()
   AND (
     title ILIKE $2
     OR summary ILIKE $2
