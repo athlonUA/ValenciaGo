@@ -1,7 +1,12 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { StoredEvent } from '../types/index.js';
 import { EventCategory } from '../types/category.js';
-import { formatEventCard, formatEventList, formatWelcome } from './formatters.js';
+import {
+  formatEventCard,
+  formatEventList,
+  formatOngoingDateLabel,
+  formatWelcome,
+} from './formatters.js';
 
 const sampleEvent: StoredEvent = {
   id: 'test-1',
@@ -173,6 +178,66 @@ describe('formatEventList', () => {
     expect(result).toContain('Flamenco Show');
     // Divider between cards
     expect(result).toContain('┈┈┈┈┈');
+  });
+});
+
+describe('formatOngoingDateLabel', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // Sun 26 Apr 2026 17:00 UTC = 19:00 Madrid (CEST)
+    vi.setSystemTime(new Date('2026-04-26T17:00:00Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test('returns "Today · last day" when run ends today (Madrid)', () => {
+    // Started Fri 17 Apr 12:00 Madrid, ends Sun 26 Apr 23:59 Madrid → today is the last day
+    const event = {
+      startsAt: new Date('2026-04-17T10:00:00Z'),
+      endsAt: new Date('2026-04-26T21:59:00Z'),
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Today · last day');
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('Сьогодні · останній день');
+    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toBe('Hoy · último día');
+  });
+
+  test('returns "Today · until DD MMM" when run continues past today', () => {
+    // Started yesterday, ends 30 Apr 2026 → today + 4 more days
+    const event = {
+      startsAt: new Date('2026-04-25T10:00:00Z'),
+      endsAt: new Date('2026-04-30T21:59:00Z'),
+    };
+    const enLabel = formatOngoingDateLabel(event, 'en-GB', 'en');
+    expect(enLabel).toMatch(/^Today · until \d+ Apr$/);
+    const ukLabel = formatOngoingDateLabel(event, 'uk-UA', 'uk');
+    expect(ukLabel).toMatch(/^Сьогодні · до /);
+    const esLabel = formatOngoingDateLabel(event, 'es-ES', 'es');
+    expect(esLabel).toMatch(/^Hoy · hasta /);
+  });
+
+  test('returns null when event has not started yet', () => {
+    const event = {
+      startsAt: new Date('2026-04-27T10:00:00Z'), // tomorrow
+      endsAt: new Date('2026-04-30T21:59:00Z'),
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
+  });
+
+  test('returns null when event has no endsAt (single-day, default formatter handles it)', () => {
+    const event = {
+      startsAt: new Date('2026-04-25T10:00:00Z'),
+      endsAt: undefined,
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
+  });
+
+  test('returns null when event already ended (defensive)', () => {
+    const event = {
+      startsAt: new Date('2026-04-20T10:00:00Z'),
+      endsAt: new Date('2026-04-25T21:59:00Z'), // ended yesterday
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
   });
 });
 

@@ -44,6 +44,9 @@ const translations = {
     'map': 'Map',
     'details': 'Details',
     'noEventsFound': 'No events found.',
+    'today': 'Today',
+    'lastDay': 'last day',
+    'until': 'until',
 
     // Welcome
     'welcome.title': 'Valencia Events',
@@ -136,6 +139,9 @@ const translations = {
     'from': 'Від',
     'map': 'Карта',
     'details': 'Деталі',
+    'today': 'Сьогодні',
+    'lastDay': 'останній день',
+    'until': 'до',
     'noEventsFound': 'Подій не знайдено.',
 
     // Welcome
@@ -229,6 +235,9 @@ const translations = {
     'from': 'Desde',
     'map': 'Mapa',
     'details': 'Detalles',
+    'today': 'Hoy',
+    'lastDay': 'último día',
+    'until': 'hasta',
     'noEventsFound': 'No se encontraron eventos.',
 
     // Welcome

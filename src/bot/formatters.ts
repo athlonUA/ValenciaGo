@@ -24,24 +24,33 @@ export function formatEventCard(event: StoredEvent, locale: Locale = 'en'): stri
 
   // Line 2: Date/time · Price
   const meta: string[] = [];
-  // If AI extracted a real time and starts_at is a placeholder (midnight or noon), use AI time
-  // Skip AI time for visitvalencia — adapter always sets noon placeholder and GPT hallucinates times
-  const madridHour = Number(event.startsAt.toLocaleString('en-GB', { timeZone: 'Europe/Madrid', hour: '2-digit', hour12: false }));
-  const isPlaceholderTime = madridHour === 0 || madridHour === 12;
-  const trustAiTime = event.source !== 'visitvalencia';
-  if (isPlaceholderTime && trustAiTime && event.aiTime && event.aiTime !== 'TBD') {
-    const dateOnly = event.startsAt.toLocaleDateString(dl, {
-      timeZone: 'Europe/Madrid', weekday: 'short', month: 'short', day: 'numeric',
-    });
-    meta.push(`${dateOnly}, ${event.aiTime}`);
-  } else if (isPlaceholderTime && (!trustAiTime || !event.aiTime || event.aiTime === 'TBD')) {
-    // No real time available — show date only
-    const dateOnly = event.startsAt.toLocaleDateString(dl, {
-      timeZone: 'Europe/Madrid', weekday: 'short', month: 'short', day: 'numeric',
-    });
-    meta.push(dateOnly);
+  // Multi-day events that started before today but are still running today should not
+  // display their (now-irrelevant) start date — that confuses users in /today. Show
+  // "Today · last day" or "Today · until DD MMM" instead.
+  const ongoingLabel = formatOngoingDateLabel(event, dl, locale);
+  if (ongoingLabel) {
+    meta.push(ongoingLabel);
   } else {
-    meta.push(formatEventDate(event.startsAt, true, dl));
+    // Default path: events starting today or in the future use the start date.
+    // If AI extracted a real time and starts_at is a placeholder (midnight or noon), use AI time.
+    // Skip AI time for visitvalencia — adapter always sets noon placeholder and GPT hallucinates times.
+    const madridHour = Number(event.startsAt.toLocaleString('en-GB', { timeZone: 'Europe/Madrid', hour: '2-digit', hour12: false }));
+    const isPlaceholderTime = madridHour === 0 || madridHour === 12;
+    const trustAiTime = event.source !== 'visitvalencia';
+    if (isPlaceholderTime && trustAiTime && event.aiTime && event.aiTime !== 'TBD') {
+      const dateOnly = event.startsAt.toLocaleDateString(dl, {
+        timeZone: 'Europe/Madrid', weekday: 'short', month: 'short', day: 'numeric',
+      });
+      meta.push(`${dateOnly}, ${event.aiTime}`);
+    } else if (isPlaceholderTime && (!trustAiTime || !event.aiTime || event.aiTime === 'TBD')) {
+      // No real time available — show date only
+      const dateOnly = event.startsAt.toLocaleDateString(dl, {
+        timeZone: 'Europe/Madrid', weekday: 'short', month: 'short', day: 'numeric',
+      });
+      meta.push(dateOnly);
+    } else {
+      meta.push(formatEventDate(event.startsAt, true, dl));
+    }
   }
   // Price: free synonyms → localized label; ranges → localized "from <lower>"; else raw aiPrice or shortened priceInfo.
   const rawPrice = event.aiPrice && !/^check\b/i.test(event.aiPrice) ? event.aiPrice : null;
@@ -117,6 +126,42 @@ export function formatWelcome(locale: Locale = 'en'): string {
 }
 
 // --- Helpers ---
+
+const MADRID_TZ = 'Europe/Madrid';
+
+/**
+ * For multi-day events whose run is currently underway (start in the past, end in
+ * future or today), produce a context-aware date label:
+ *   - "Today · last day" — if the run ends today
+ *   - "Today · until 30 Apr" — if the run continues past today
+ * Returns null for events that aren't already running, so the default code path
+ * (start-date-with-weekday) handles them.
+ */
+export function formatOngoingDateLabel(
+  event: { startsAt: Date; endsAt?: Date },
+  dl: string,
+  locale: Locale,
+): string | null {
+  if (!event.endsAt) return null;
+  const now = new Date();
+  // "Already started" = strictly in the past, not "starts later today".
+  if (event.startsAt.getTime() >= now.getTime()) return null;
+  // Defensive: skip events already over (the SQL filter should have hidden them, but
+  // guard the formatter in case it's called from a different code path).
+  if (event.endsAt.getTime() < now.getTime()) return null;
+
+  const todayStr = now.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });   // YYYY-MM-DD
+  const endStr = event.endsAt.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });
+
+  const today = t(locale, 'today');
+  if (endStr === todayStr) {
+    return `${today} · ${t(locale, 'lastDay')}`;
+  }
+  const endDateLocalised = event.endsAt.toLocaleDateString(dl, {
+    timeZone: MADRID_TZ, month: 'short', day: 'numeric',
+  });
+  return `${today} · ${t(locale, 'until')} ${endDateLocalised}`;
+}
 
 function esc(text: string): string {
   return text
