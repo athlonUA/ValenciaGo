@@ -191,35 +191,70 @@ describe('formatOngoingDateLabel', () => {
     vi.useRealTimers();
   });
 
-  test('returns "Today · last day" when run ends today (Madrid)', () => {
+  test('appends "last day" suffix when run ends today (Madrid)', () => {
     // Started Fri 17 Apr 12:00 Madrid, ends Sun 26 Apr 23:59 Madrid → today is the last day
     const event = {
       startsAt: new Date('2026-04-17T10:00:00Z'),
       endsAt: new Date('2026-04-26T21:59:00Z'),
+      aiTime: undefined,
+      source: 'visitvalencia',
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Today · last day');
-    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('Сьогодні · останній день');
-    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toBe('Hoy · último día');
+    // en-GB doesn't insert a comma between weekday and date; uk-UA / es-ES do.
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · last day');
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('нд, 26 квіт. · останній день');
+    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toBe('dom, 26 abr · último día');
   });
 
-  test('returns "Today · until DD MMM" when run continues past today', () => {
+  test('appends "until DD MMM" suffix when run continues past today', () => {
     // Started yesterday, ends 30 Apr 2026 → today + 4 more days
     const event = {
       startsAt: new Date('2026-04-25T10:00:00Z'),
       endsAt: new Date('2026-04-30T21:59:00Z'),
+      aiTime: undefined,
+      source: 'visitvalencia',
     };
-    const enLabel = formatOngoingDateLabel(event, 'en-GB', 'en');
-    expect(enLabel).toMatch(/^Today · until \d+ Apr$/);
-    const ukLabel = formatOngoingDateLabel(event, 'uk-UA', 'uk');
-    expect(ukLabel).toMatch(/^Сьогодні · до /);
-    const esLabel = formatOngoingDateLabel(event, 'es-ES', 'es');
-    expect(esLabel).toMatch(/^Hoy · hasta /);
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toMatch(/^Sun 26 Apr · until \d+ Apr$/);
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toMatch(/^нд, 26 квіт\. · до /);
+    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toMatch(/^dom, 26 abr · hasta /);
+  });
+
+  test('includes AI-extracted time when present and trustworthy', () => {
+    const event = {
+      startsAt: new Date('2026-04-17T10:00:00Z'),
+      endsAt: new Date('2026-04-26T21:59:00Z'),
+      aiTime: '20:00',
+      source: 'meetup',  // not visitvalencia → trust aiTime
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr, 20:00 · last day');
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('нд, 26 квіт., 20:00 · останній день');
+  });
+
+  test('skips AI time for visitvalencia (placeholder source) even if aiTime is set', () => {
+    const event = {
+      startsAt: new Date('2026-04-17T10:00:00Z'),
+      endsAt: new Date('2026-04-26T21:59:00Z'),
+      aiTime: '20:00',
+      source: 'visitvalencia',
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · last day');
+  });
+
+  test('skips AI time when aiTime is "TBD"', () => {
+    const event = {
+      startsAt: new Date('2026-04-17T10:00:00Z'),
+      endsAt: new Date('2026-04-26T21:59:00Z'),
+      aiTime: 'TBD',
+      source: 'meetup',
+    };
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · last day');
   });
 
   test('returns null when event has not started yet', () => {
     const event = {
       startsAt: new Date('2026-04-27T10:00:00Z'), // tomorrow
       endsAt: new Date('2026-04-30T21:59:00Z'),
+      aiTime: undefined,
+      source: 'meetup',
     };
     expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
   });
@@ -228,6 +263,8 @@ describe('formatOngoingDateLabel', () => {
     const event = {
       startsAt: new Date('2026-04-25T10:00:00Z'),
       endsAt: undefined,
+      aiTime: undefined,
+      source: 'meetup',
     };
     expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
   });
@@ -236,6 +273,8 @@ describe('formatOngoingDateLabel', () => {
     const event = {
       startsAt: new Date('2026-04-20T10:00:00Z'),
       endsAt: new Date('2026-04-25T21:59:00Z'), // ended yesterday
+      aiTime: undefined,
+      source: 'meetup',
     };
     expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBeNull();
   });

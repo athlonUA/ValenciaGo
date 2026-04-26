@@ -131,14 +131,16 @@ const MADRID_TZ = 'Europe/Madrid';
 
 /**
  * For multi-day events whose run is currently underway (start in the past, end in
- * future or today), produce a context-aware date label:
- *   - "Today · last day" — if the run ends today
- *   - "Today · until 30 Apr" — if the run continues past today
+ * future or today), produce a context-aware date label that anchors on TODAY rather
+ * than the now-irrelevant start of the run:
+ *   - "Sun, 26 Apr, 20:00 · last day"        — if today is the last day of the run
+ *   - "Sun, 26 Apr, 20:00 · until 28 Apr"   — if the run continues past today
+ *   - "Sun, 26 Apr · last day"               — same, but no usable time available
  * Returns null for events that aren't already running, so the default code path
  * (start-date-with-weekday) handles them.
  */
 export function formatOngoingDateLabel(
-  event: { startsAt: Date; endsAt?: Date },
+  event: Pick<StoredEvent, 'startsAt' | 'endsAt' | 'aiTime' | 'source'>,
   dl: string,
   locale: Locale,
 ): string | null {
@@ -153,14 +155,26 @@ export function formatOngoingDateLabel(
   const todayStr = now.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });   // YYYY-MM-DD
   const endStr = event.endsAt.toLocaleDateString('en-CA', { timeZone: MADRID_TZ });
 
-  const today = t(locale, 'today');
-  if (endStr === todayStr) {
-    return `${today} · ${t(locale, 'lastDay')}`;
-  }
-  const endDateLocalised = event.endsAt.toLocaleDateString(dl, {
-    timeZone: MADRID_TZ, month: 'short', day: 'numeric',
+  // Today's date, formatted the same way the default code path formats start dates.
+  const todayDate = now.toLocaleDateString(dl, {
+    timeZone: MADRID_TZ, weekday: 'short', month: 'short', day: 'numeric',
   });
-  return `${today} · ${t(locale, 'until')} ${endDateLocalised}`;
+
+  // Append AI-extracted time when it's meaningful. Mirrors the trust check from the
+  // default path: visitvalencia always sets noon placeholders, so its aiTime is
+  // unreliable.
+  const trustAiTime = event.source !== 'visitvalencia';
+  const hasUsefulTime = trustAiTime && event.aiTime && event.aiTime !== 'TBD';
+  const datePart = hasUsefulTime ? `${todayDate}, ${event.aiTime}` : todayDate;
+
+  // Suffix: "last day" if today closes the run, otherwise "until <end date>".
+  const suffix = endStr === todayStr
+    ? t(locale, 'lastDay')
+    : `${t(locale, 'until')} ${event.endsAt.toLocaleDateString(dl, {
+        timeZone: MADRID_TZ, month: 'short', day: 'numeric',
+      })}`;
+
+  return `${datePart} · ${suffix}`;
 }
 
 function esc(text: string): string {

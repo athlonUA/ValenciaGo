@@ -128,6 +128,7 @@ describe('dateLocale', () => {
 describe('translation completeness', () => {
   const keys: TranslationKey[] = [
     'free', 'from', 'map', 'details', 'noEventsFound',
+    'today', 'lastDay', 'until',
     'welcome.title', 'welcome.today', 'welcome.tomorrow', 'welcome.weekend',
     'welcome.week', 'welcome.free', 'welcome.category', 'welcome.likes',
     'welcome.lang',
