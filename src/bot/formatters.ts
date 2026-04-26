@@ -167,14 +167,15 @@ export function formatOngoingDateLabel(
   const hasUsefulTime = trustAiTime && event.aiTime && event.aiTime !== 'TBD';
   const datePart = hasUsefulTime ? `${todayDate}, ${event.aiTime}` : todayDate;
 
-  // Suffix: "last day" if today closes the run, otherwise "until <end date>".
+  // Suffix: "last day" if today closes the run, otherwise "until <end date>". Wrapped
+  // in <i> so Telegram renders it in italics — visually distinct from the date itself.
   const suffix = endStr === todayStr
     ? t(locale, 'lastDay')
     : `${t(locale, 'until')} ${event.endsAt.toLocaleDateString(dl, {
         timeZone: MADRID_TZ, month: 'short', day: 'numeric',
       })}`;
 
-  return `${datePart} · ${suffix}`;
+  return `${datePart} · <i>${suffix}</i>`;
 }
 
 function esc(text: string): string {

@@ -200,9 +200,9 @@ describe('formatOngoingDateLabel', () => {
       source: 'visitvalencia',
     };
     // en-GB doesn't insert a comma between weekday and date; uk-UA / es-ES do.
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · last day');
-    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('нд, 26 квіт. · останній день');
-    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toBe('dom, 26 abr · último día');
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · <i>last day</i>');
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('нд, 26 квіт. · <i>останній день</i>');
+    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toBe('dom, 26 abr · <i>último día</i>');
   });
 
   test('appends "until DD MMM" suffix when run continues past today', () => {
@@ -213,9 +213,9 @@ describe('formatOngoingDateLabel', () => {
       aiTime: undefined,
       source: 'visitvalencia',
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toMatch(/^Sun 26 Apr · until \d+ Apr$/);
-    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toMatch(/^нд, 26 квіт\. · до /);
-    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toMatch(/^dom, 26 abr · hasta /);
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toMatch(/^Sun 26 Apr · <i>until \d+ Apr<\/i>$/);
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toMatch(/^нд, 26 квіт\. · <i>до /);
+    expect(formatOngoingDateLabel(event, 'es-ES', 'es')).toMatch(/^dom, 26 abr · <i>hasta /);
   });
 
   test('includes AI-extracted time when present and trustworthy', () => {
@@ -225,8 +225,8 @@ describe('formatOngoingDateLabel', () => {
       aiTime: '20:00',
       source: 'meetup',  // not visitvalencia → trust aiTime
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr, 20:00 · last day');
-    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('нд, 26 квіт., 20:00 · останній день');
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr, 20:00 · <i>last day</i>');
+    expect(formatOngoingDateLabel(event, 'uk-UA', 'uk')).toBe('нд, 26 квіт., 20:00 · <i>останній день</i>');
   });
 
   test('skips AI time for visitvalencia (placeholder source) even if aiTime is set', () => {
@@ -236,7 +236,7 @@ describe('formatOngoingDateLabel', () => {
       aiTime: '20:00',
       source: 'visitvalencia',
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · last day');
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · <i>last day</i>');
   });
 
   test('skips AI time when aiTime is "TBD"', () => {
@@ -246,7 +246,7 @@ describe('formatOngoingDateLabel', () => {
       aiTime: 'TBD',
       source: 'meetup',
     };
-    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · last day');
+    expect(formatOngoingDateLabel(event, 'en-GB', 'en')).toBe('Sun 26 Apr · <i>last day</i>');
   });
 
   test('returns null when event has not started yet', () => {
