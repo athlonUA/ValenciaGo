@@ -84,17 +84,28 @@ export async function getEventsInRange(
   opts?: { category?: string; isFree?: boolean; limit?: number; offset?: number },
 ): Promise<StoredEvent[]> {
   const params: unknown[] = [from.toISOString(), to.toISOString()];
-  // Visibility rule: event must overlap the window AND not be over yet.
-  //   1. starts_at < $2          — starts before window ends
-  //   2. COALESCE(ends_at, starts_at + 2h) > GREATEST($1, NOW())
-  //      — effective end is past both the window start and "right now"
+  // Visibility rule: event must overlap the window AND not be over yet AND it must
+  // make sense to surface it in this window:
+  //   1. starts_at < $2                         — starts before window ends
+  //   2. COALESCE(ends_at, starts_at+2h) > GREATEST($1, NOW())
+  //                                             — effective end still in the future
+  //                                               relative to both the window and now
+  //   3. starts_at >= $1 OR ends_at - starts_at <= 14 days
+  //                                             — either the event begins inside the
+  //                                               window, or it's a short-run multi-day
+  //                                               event (festival, theatre run). This
+  //                                               keeps year-long permanent exhibitions
+  //                                               and rolling programmes off /today.
   //
-  // The "+2h" inside COALESCE is a duration default for events without an explicit
-  // ends_at (most single-day Meetup/Eventbrite items): they hide ~2h after the start.
-  // For events with an explicit ends_at (TastArròs, theatre runs), they hide exactly
-  // when ends_at passes — no grace, so a finished event drops out of /today right away.
+  // The "+2h" inside COALESCE is a duration default for items without an explicit
+  // ends_at (most Meetup/Eventbrite events): they hide ~2h after they start. Events
+  // with an explicit ends_at hide exactly when ends_at passes — no grace.
   let where = `WHERE starts_at < $2
-    AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())`;
+    AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())
+    AND (
+      starts_at >= $1::timestamptz
+      OR (ends_at IS NOT NULL AND ends_at - starts_at <= INTERVAL '14 days')
+    )`;
   let idx = 3;
 
   if (opts?.category) {
@@ -126,7 +137,11 @@ export async function countEventsInRange(
   // Mirror the WHERE clause from getEventsInRange exactly so counts match the page.
   const params: unknown[] = [from.toISOString(), to.toISOString()];
   let where = `WHERE starts_at < $2
-    AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())`;
+    AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())
+    AND (
+      starts_at >= $1::timestamptz
+      OR (ends_at IS NOT NULL AND ends_at - starts_at <= INTERVAL '14 days')
+    )`;
   let idx = 3;
 
   if (opts?.category) {

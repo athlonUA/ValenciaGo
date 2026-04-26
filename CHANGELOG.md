@@ -37,7 +37,8 @@
 - Extracted search WHERE clause helper (DRY)
 
 ### Fixed
-- **Finished events drop from `/today` and `/search` immediately.** The visibility rule is now `COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST(range_from, NOW())`: events with an explicit `ends_at` disappear right when they end (no 2-hour grace), events without `ends_at` get a 2-hour assumed duration before being hidden. Restores a behavior that earlier versions had but the multi-day-event fix had relaxed
+- **Long-running exhibitions no longer flood `/today`.** Year-long permanent exhibitions, rolling cinema schedules and "ongoing" tour-bus listings used to fill `/today` every single day after the multi-day fix landed. Visibility now requires either `starts_at` to fall inside the window, or the event's run to be ≤ 14 days. Festivals (TastArròs, FestIN, MAMMA MIA week) still surface every day of their run; year-long exhibitions only on their first day
+- **Finished events drop from `/today` and `/search` immediately.** Visibility rule: `COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST(range_from, NOW())`. Events with explicit `ends_at` disappear when they end (no grace); events without `ends_at` get a 2-hour assumed duration
 - **Multi-day events stay visible until they truly end.** Bot queries (`getEventsInRange`, `countEventsInRange`, `searchEvents`) use a range-overlap predicate instead of `starts_at`-only filtering. Festivals like TastArròs (Apr 25–26) surface in `/today` on every day of the run, not just day one
 - Visit Valencia date-range parser anchors the END date at 23:59 Madrid (was noon) so a 2-day festival's `ends_at` reflects the actual close-of-day, not midday
 - Added `arroz` and `rice` to the `food-drink` classifier vocabulary so events like TastArròs ("la gran fiesta del arroz") classify as food rather than nightlife on the strength of the word "fiesta"
