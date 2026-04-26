@@ -37,7 +37,8 @@
 - Extracted search WHERE clause helper (DRY)
 
 ### Fixed
-- **Multi-day events stay visible until they truly end.** Bot queries (`getEventsInRange`, `countEventsInRange`, `searchEvents`) now use a range-overlap predicate (`starts_at < to AND COALESCE(ends_at, starts_at) >= from`) instead of `starts_at`-only filtering. Festivals like TastArròs (Apr 25–26) now surface in `/today` on every day of the run, not just day one
+- **Finished events drop from `/today` and `/search` immediately.** The visibility rule is now `COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST(range_from, NOW())`: events with an explicit `ends_at` disappear right when they end (no 2-hour grace), events without `ends_at` get a 2-hour assumed duration before being hidden. Restores a behavior that earlier versions had but the multi-day-event fix had relaxed
+- **Multi-day events stay visible until they truly end.** Bot queries (`getEventsInRange`, `countEventsInRange`, `searchEvents`) use a range-overlap predicate instead of `starts_at`-only filtering. Festivals like TastArròs (Apr 25–26) surface in `/today` on every day of the run, not just day one
 - Visit Valencia date-range parser anchors the END date at 23:59 Madrid (was noon) so a 2-day festival's `ends_at` reflects the actual close-of-day, not midday
 - Added `arroz` and `rice` to the `food-drink` classifier vocabulary so events like TastArròs ("la gran fiesta del arroz") classify as food rather than nightlife on the strength of the word "fiesta"
 - IVC "hasta el …" ongoing events no longer self-invalidate: `startsAt` is anchored to start-of-day Madrid and `endsAt` to end-of-day Madrid, so re-ingest in the evening of the run's last day no longer trips `chk_events_end_after_start`

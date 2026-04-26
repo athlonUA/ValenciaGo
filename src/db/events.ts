@@ -83,16 +83,18 @@ export async function getEventsInRange(
   to: Date,
   opts?: { category?: string; isFree?: boolean; limit?: number; offset?: number },
 ): Promise<StoredEvent[]> {
-  // 2-hour grace period so ongoing single-day events stay in /today after they begin,
-  // and multi-day events stay visible until they actually end.
-  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-  const effectiveFrom = from.toISOString() > cutoff ? from.toISOString() : cutoff;
-
-  const params: unknown[] = [effectiveFrom, to.toISOString()];
-  // Range-overlap predicate: event starts before window ends AND its effective end (or
-  // start, when ends_at is unknown) is still in/after the window. This keeps multi-day
-  // festivals like TastArròs visible on every day of the run, not just day one.
-  let where = 'WHERE starts_at < $2 AND COALESCE(ends_at, starts_at) >= $1';
+  const params: unknown[] = [from.toISOString(), to.toISOString()];
+  // Visibility rule: event must overlap the window AND not be over yet.
+  //   1. starts_at < $2          — starts before window ends
+  //   2. COALESCE(ends_at, starts_at + 2h) > GREATEST($1, NOW())
+  //      — effective end is past both the window start and "right now"
+  //
+  // The "+2h" inside COALESCE is a duration default for events without an explicit
+  // ends_at (most single-day Meetup/Eventbrite items): they hide ~2h after the start.
+  // For events with an explicit ends_at (TastArròs, theatre runs), they hide exactly
+  // when ends_at passes — no grace, so a finished event drops out of /today right away.
+  let where = `WHERE starts_at < $2
+    AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())`;
   let idx = 3;
 
   if (opts?.category) {
@@ -121,12 +123,10 @@ export async function countEventsInRange(
   to: Date,
   opts?: { category?: string; isFree?: boolean },
 ): Promise<number> {
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  const effectiveFrom = from.toISOString() > cutoff ? from.toISOString() : cutoff;
-
-  const params: unknown[] = [effectiveFrom, to.toISOString()];
-  // Same range-overlap predicate as getEventsInRange — counts must agree with the page.
-  let where = 'WHERE starts_at < $2 AND COALESCE(ends_at, starts_at) >= $1';
+  // Mirror the WHERE clause from getEventsInRange exactly so counts match the page.
+  const params: unknown[] = [from.toISOString(), to.toISOString()];
+  let where = `WHERE starts_at < $2
+    AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())`;
   let idx = 3;
 
   if (opts?.category) {
