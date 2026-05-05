@@ -90,10 +90,15 @@ export async function getEventsInRange(
   //   2. COALESCE(ends_at, starts_at+2h) > GREATEST($1, NOW())
   //                                             — effective end still in the future
   //                                               relative to both the window and now
-  //   3. starts_at >= $1 OR ends_at - starts_at <= 14 days
+  //   3. starts_at >= $1
+  //      OR (24 hours <= ends_at - starts_at <= 14 days)
   //                                             — either the event begins inside the
-  //                                               window, or it's a short-run multi-day
-  //                                               event (festival, theatre run). This
+  //                                               window, or it's a TRUE multi-day event
+  //                                               (festival, theatre run). The 24h floor
+  //                                               keeps late-night events whose ends_at
+  //                                               just crosses midnight (clubs, bars)
+  //                                               from leaking into /weekend or /tomorrow
+  //                                               as previous-day items. The 14d ceiling
   //                                               keeps year-long permanent exhibitions
   //                                               and rolling programmes off /today.
   //
@@ -104,7 +109,11 @@ export async function getEventsInRange(
     AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())
     AND (
       starts_at >= $1::timestamptz
-      OR (ends_at IS NOT NULL AND ends_at - starts_at <= INTERVAL '14 days')
+      OR (
+        ends_at IS NOT NULL
+        AND ends_at - starts_at >= INTERVAL '24 hours'
+        AND ends_at - starts_at <= INTERVAL '14 days'
+      )
     )`;
   let idx = 3;
 
@@ -121,7 +130,7 @@ export async function getEventsInRange(
   const offset = opts?.offset ?? 0;
 
   const result = await pool.query(
-    `SELECT * FROM events ${where} ORDER BY starts_at ASC LIMIT $${idx++} OFFSET $${idx}`,
+    `SELECT * FROM events ${where} ORDER BY starts_at ASC, id ASC LIMIT $${idx++} OFFSET $${idx}`,
     [...params, limit, offset],
   );
 
@@ -140,7 +149,11 @@ export async function countEventsInRange(
     AND COALESCE(ends_at, starts_at + INTERVAL '2 hours') > GREATEST($1::timestamptz, NOW())
     AND (
       starts_at >= $1::timestamptz
-      OR (ends_at IS NOT NULL AND ends_at - starts_at <= INTERVAL '14 days')
+      OR (
+        ends_at IS NOT NULL
+        AND ends_at - starts_at >= INTERVAL '24 hours'
+        AND ends_at - starts_at <= INTERVAL '14 days'
+      )
     )`;
   let idx = 3;
 
@@ -198,7 +211,7 @@ export async function searchEvents(
       ) AS fts_rank
     FROM events
     WHERE ${SEARCH_WHERE}
-    ORDER BY sim DESC, fts_rank DESC, starts_at ASC
+    ORDER BY sim DESC, fts_rank DESC, starts_at ASC, id ASC
     LIMIT $3 OFFSET $4`,
     [query, pattern, limit, offset],
   );

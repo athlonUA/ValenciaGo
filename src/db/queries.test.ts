@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { rowToStoredEvent } from './queries.js';
 import {
   upsertEvent,
@@ -15,6 +15,7 @@ import {
   isEventLiked,
   deleteUserData,
 } from './queries.js';
+import type { Queryable } from './types.js';
 
 describe('barrel re-exports', () => {
   test('all query functions are accessible via queries.js barrel', () => {
@@ -104,5 +105,52 @@ describe('rowToStoredEvent', () => {
     const row = { ...sampleRow, tags: null };
     const event = rowToStoredEvent(row);
     expect(event.tags).toEqual([]);
+  });
+});
+
+// --- SQL construction tests (regression guards for pagination + visibility filter) ---
+//
+// These don't hit a real DB. They capture the SQL string passed to pool.query and
+// assert it contains the structural pieces that fix two production bugs:
+//   - duplicate event across pagination pages → ORDER BY needs an `id ASC` tiebreaker
+//   - Friday-night events leaking into /weekend → multi-day branch needs a 24h floor
+
+const fakePool = (rows: unknown[] = []): Queryable =>
+  ({ query: vi.fn(async () => ({ rows })) }) as unknown as Queryable;
+
+const lastSql = (pool: Queryable): string =>
+  (pool.query as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+
+describe('getEventsInRange query construction', () => {
+  test('orders by starts_at ASC then id ASC for deterministic pagination', async () => {
+    const pool = fakePool();
+    await getEventsInRange(pool, new Date('2026-05-09'), new Date('2026-05-10'));
+    expect(lastSql(pool)).toMatch(/ORDER BY starts_at ASC, id ASC/);
+  });
+
+  test('multi-day branch requires duration between 24 hours and 14 days', async () => {
+    const pool = fakePool();
+    await getEventsInRange(pool, new Date('2026-05-09'), new Date('2026-05-10'));
+    const sql = lastSql(pool);
+    expect(sql).toMatch(/ends_at\s*-\s*starts_at\s*>=\s*INTERVAL\s*'24 hours'/);
+    expect(sql).toMatch(/ends_at\s*-\s*starts_at\s*<=\s*INTERVAL\s*'14 days'/);
+  });
+});
+
+describe('countEventsInRange query construction', () => {
+  test('uses identical multi-day filter as getEventsInRange', async () => {
+    const pool = fakePool([{ count: 0 }]);
+    await countEventsInRange(pool, new Date('2026-05-09'), new Date('2026-05-10'));
+    const sql = lastSql(pool);
+    expect(sql).toMatch(/ends_at\s*-\s*starts_at\s*>=\s*INTERVAL\s*'24 hours'/);
+    expect(sql).toMatch(/ends_at\s*-\s*starts_at\s*<=\s*INTERVAL\s*'14 days'/);
+  });
+});
+
+describe('searchEvents query construction', () => {
+  test('orders by relevance then id ASC for deterministic pagination', async () => {
+    const pool = fakePool();
+    await searchEvents(pool, 'jazz');
+    expect(lastSql(pool)).toMatch(/ORDER BY sim DESC, fts_rank DESC, starts_at ASC, id ASC/);
   });
 });
