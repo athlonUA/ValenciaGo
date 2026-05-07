@@ -22,6 +22,14 @@ describe('resolveLocale', () => {
     expect(resolveLocale('en')).toBe('en');
   });
 
+  test('returns uk for "ru" (Russian → Ukrainian)', () => {
+    expect(resolveLocale('ru')).toBe('uk');
+  });
+
+  test('returns uk for "ru-RU"', () => {
+    expect(resolveLocale('ru-RU')).toBe('uk');
+  });
+
   test('returns en for "fr"', () => {
     expect(resolveLocale('fr')).toBe('en');
   });

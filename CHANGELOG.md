@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Russian Telegram users (`language_code: ru`) now get Ukrainian interface instead of English fallback
 - **IVC adapter** (`ivc.gva.es`) — Generalitat cultural programming (Teatre Principal, Rialto, Filmoteca), filters out non-València-city venues
 - **Ayuntamiento de València adapter** (`valencia.es`) — implemented but disabled; the agenda listing is rendered by a Liferay portlet that requires JS execution
 - **Eventbrite second pass** with `price=free` filter to surface free city festivals that rank below the paid/promoted cut-off; `MAX_PAGES` raised to 10

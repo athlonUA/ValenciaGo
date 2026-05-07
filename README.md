@@ -142,7 +142,7 @@ The bot supports three languages:
 | Language | Detection |
 |---|---|
 | 🇬🇧 English | Default |
-| 🇺🇦 Українська | Telegram `language_code: uk` |
+| 🇺🇦 Українська | Telegram `language_code: uk`, `ru` (Russian) |
 | 🇪🇸 Español | Telegram `language_code: es` |
 
 Language is auto-detected from Telegram settings, but users can override it with `/lang`. The preference is stored in the database and takes priority over Telegram's language setting.

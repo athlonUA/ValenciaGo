@@ -9,6 +9,7 @@ export function isLocale(value: string): value is Locale {
 export function resolveLocale(languageCode?: string): Locale {
   if (languageCode?.startsWith('uk')) return 'uk';
   if (languageCode?.startsWith('es')) return 'es';
+  if (languageCode?.startsWith('ru')) return 'uk';
   return 'en';
 }
 
