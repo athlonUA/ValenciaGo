@@ -125,8 +125,9 @@ export class ValenciaCFAdapter implements SourceAdapter {
 
       let year = textMatch[3] ? parseInt(textMatch[3], 10) : new Date().getFullYear();
       const candidate = new Date(year, parseInt(month, 10) - 1, parseInt(day, 10));
-      // If no explicit year and the date is more than 30 days in the past, bump to next year
-      if (!textMatch[3] && candidate.getTime() < Date.now() - 30 * 86_400_000) {
+      // If no explicit year and the date is in the past, bump to next year.
+      // The schedule page shows the full upcoming season — all matches are future.
+      if (!textMatch[3] && candidate.getTime() < Date.now()) {
         year += 1;
       }
       return `${year}-${month}-${day}T${time}+02:00`;
