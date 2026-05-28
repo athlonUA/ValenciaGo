@@ -9,31 +9,6 @@ const log = createLogger('meetup');
 
 const BASE_URL = 'https://www.meetup.com/find/es--valencia/';
 
-// Fetch all Meetup categories to maximise event coverage
-const CATEGORY_IDS = [
-  2,   // Career & Business
-  6,   // Education & Learning
-  9,   // Food & Drink
-  10,  // Games
-  11,  // Health & Wellbeing
-  12,  // Hobbies & Crafts
-  14,  // Language & Culture
-  15,  // Arts & Culture
-  17,  // Music
-  18,  // New Age & Spirituality
-  19,  // Outdoors & Adventure
-  23,  // Photography
-  24,  // Sports & Recreation
-  27,  // Socializing
-  32,  // Sports & Fitness
-  34,  // Tech
-  35,  // Wellness
-];
-
-function categoryUrl(id: number): string {
-  return `${BASE_URL}?categoryId=${id}`;
-}
-
 interface MeetupEventData {
   id: string;
   title: string;
@@ -84,41 +59,13 @@ export class MeetupAdapter implements SourceAdapter {
 
     const html = response.data as string;
 
-    // Single persistent Map for dedup across all pages — O(n) total
+    // Single Map for dedup
     const byId = new Map<string, RawEvent>();
 
-    // Extract from main page
     const mainNextData = this.extractFromNextData(html);
     const mainJsonLd = this.extractFromJsonLd(html);
     for (const evt of mainNextData) byId.set(evt.sourceId, evt);
     for (const evt of mainJsonLd) { if (!byId.has(evt.sourceId)) byId.set(evt.sourceId, evt); }
-
-    // Safety limit — prevent unbounded fetching across categories
-    const MAX_EVENTS = 2000;
-
-    // Fetch additional category pages for broader coverage
-    for (let i = 0; i < CATEGORY_IDS.length; i++) {
-      if (byId.size >= MAX_EVENTS) break;
-      if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
-      const catId = CATEGORY_IDS[i];
-      const url = categoryUrl(catId);
-      try {
-        const catResponse = await axios.get(url, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml',
-          },
-          timeout: 15000,
-        });
-        const catNextData = this.extractFromNextData(catResponse.data as string);
-        const catJsonLd = this.extractFromJsonLd(catResponse.data as string);
-        for (const evt of catNextData) byId.set(evt.sourceId, evt);
-        for (const evt of catJsonLd) { if (!byId.has(evt.sourceId)) byId.set(evt.sourceId, evt); }
-      } catch (err) {
-        log.error({ err }, 'Error fetching category page');
-      }
-    }
 
     const merged = Array.from(byId.values());
 

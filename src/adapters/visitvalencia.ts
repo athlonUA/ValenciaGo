@@ -24,10 +24,10 @@ export class VisitValenciaAdapter implements SourceAdapter {
     // Fetch all months with events (up to 12 months ahead). Stop when a
     // month returns nothing — the site stops listing after ~6 months.
     const MAX_MONTHS_AHEAD = 12;
-    const MAX_CONSECUTIVE_ERRORS = 3;
+    const MAX_CONSECUTIVE_ERRORS = 5;
     let consecutiveErrors = 0;
     for (let i = 0; i < MAX_MONTHS_AHEAD; i++) {
-      if (i > 0) await new Promise(resolve => setTimeout(resolve, 1000));
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 2000));
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       try {
@@ -72,7 +72,7 @@ export class VisitValenciaAdapter implements SourceAdapter {
         'User-Agent': 'Mozilla/5.0 (compatible; ValenciaEventsBot/1.0)',
         'Accept-Language': 'es-ES,es;q=0.9',
       },
-      timeout: 15000,
+      timeout: 30000,
     });
 
     const $ = cheerio.load(response.data);
