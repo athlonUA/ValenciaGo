@@ -98,6 +98,7 @@ async function main() {
   process.on('SIGTERM', shutdown);
 
   await bot.start({
+    drop_pending_updates: true,
     onStart: (info) => {
       log.info({ username: info.username }, 'Bot running');
       log.info('Valencia Events is ready!');
