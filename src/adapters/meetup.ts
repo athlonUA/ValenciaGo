@@ -8,23 +8,23 @@ const GQL_URL = 'https://www.meetup.com/gql2';
 const PAGE_SIZE = 200;
 const MAX_EVENTS = 2000;
 
-const EVENT_FRAGMENT = `
-  id title dateTime endTime eventUrl description isOnline
-  group { id name urlname }
-  venue { id name lat lon address city state country }
-  feeSettings { amount currency }
-  going { totalCount }
-  featuredEventPhoto { highResUrl }
-`;
+const SEARCH_QUERIES = ['valencia', 'meetup', 'events'];
 
 const SEARCH_QUERY = `
-query($lat: Float!, $lon: Float!, $radius: Float!, $after: String) {
+query($query: String!, $lat: Float!, $lon: Float!, $radius: Float!, $after: String) {
   eventSearch(
-    filter: { query: "valencia", lat: $lat, lon: $lon, radius: $radius }
+    filter: { query: $query, lat: $lat, lon: $lon, radius: $radius }
     first: ${PAGE_SIZE}
     after: $after
   ) {
-    edges { node { ${EVENT_FRAGMENT} } cursor }
+    edges { node {
+      id title dateTime endTime eventUrl description isOnline
+      group { id name urlname }
+      venue { id name lat lon address city state country }
+      feeSettings { amount currency }
+      going { totalCount }
+      featuredEventPhoto { highResUrl }
+    } cursor }
     pageInfo { hasNextPage endCursor }
   }
 }
@@ -59,53 +59,66 @@ export class MeetupAdapter implements SourceAdapter {
   readonly enabled = true;
 
   async fetchEvents(): Promise<RawEvent[]> {
-    const events: RawEvent[] = [];
-    let cursor: string | undefined;
+    const byId = new Map<string, RawEvent>();
 
-    while (events.length < MAX_EVENTS) {
-      const { page, pageInfo } = await this.fetchPage(cursor);
-      if (page.length === 0) break;
-
-      events.push(...page);
-      log.info({ fetched: page.length, total: events.length }, 'Page fetched');
-
-      if (events.length >= MAX_EVENTS) break;
-      if (!pageInfo?.hasNextPage || !pageInfo.endCursor) break;
-      cursor = pageInfo.endCursor;
+    for (const query of SEARCH_QUERIES) {
+      if (byId.size >= MAX_EVENTS) break;
+      await this.fetchAllPages(query, byId);
     }
 
+    const events = Array.from(byId.values());
     log.info({ count: events.length }, 'Fetched events');
     return events;
   }
 
-  private async fetchPage(after?: string): Promise<{
+  private async fetchAllPages(query: string, byId: Map<string, RawEvent>): Promise<void> {
+    let cursor: string | undefined;
+
+    while (byId.size < MAX_EVENTS) {
+      const { page, pageInfo } = await this.fetchPage(query, cursor);
+      if (page.length === 0) break;
+
+      for (const evt of page) {
+        if (!byId.has(evt.sourceId)) byId.set(evt.sourceId, evt);
+      }
+      log.info({ query, fetched: page.length, total: byId.size }, 'Page fetched');
+
+      if (!pageInfo?.hasNextPage || !pageInfo.endCursor) break;
+      cursor = pageInfo.endCursor;
+    }
+  }
+
+  private async fetchPage(query: string, after?: string): Promise<{
     page: RawEvent[];
     pageInfo: { hasNextPage: boolean; endCursor: string | null } | null;
   }> {
     try {
       const response = await axios.post(GQL_URL, {
         query: SEARCH_QUERY,
-        variables: { lat: 39.47, lon: -0.38, radius: 25, after: after ?? null },
+        variables: { query, lat: 39.47, lon: -0.38, radius: 25, after: after ?? null },
       }, {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000,
       });
 
+      if (response.data?.errors) {
+        log.error({ errors: response.data.errors, query }, 'GraphQL errors');
+        return { page: [], pageInfo: null };
+      }
+
       const search = response.data?.data?.eventSearch;
       const edges: Array<{ node: GqlEvent }> = search?.edges ?? [];
       const pageInfo = search?.pageInfo ?? null;
 
-      const seen = new Set<string>();
       const page: RawEvent[] = [];
       for (const edge of edges) {
         const evt = edge.node;
-        if (!evt.id || seen.has(evt.id)) continue;
-        seen.add(evt.id);
+        if (!evt.id) continue;
         page.push(this.toRawEvent(evt));
       }
       return { page, pageInfo };
     } catch (err) {
-      log.error({ err }, 'GraphQL request failed');
+      log.error({ err, query }, 'GraphQL request failed');
       return { page: [], pageInfo: null };
     }
   }
