@@ -24,18 +24,27 @@ export class VisitValenciaAdapter implements SourceAdapter {
     // Fetch all months with events (up to 12 months ahead). Stop when a
     // month returns nothing — the site stops listing after ~6 months.
     const MAX_MONTHS_AHEAD = 12;
+    const MAX_CONSECUTIVE_ERRORS = 3;
+    let consecutiveErrors = 0;
     for (let i = 0; i < MAX_MONTHS_AHEAD; i++) {
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 1000));
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
       const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       try {
         const monthEvents = await this.fetchMonth(month);
+        consecutiveErrors = 0;
         if (monthEvents.length === 0 && i >= 2) {
           log.info({ month }, 'Empty month, stopping forward fetch');
           break;
         }
         events.push(...monthEvents);
       } catch (err) {
-        log.error({ err, month }, 'Failed to fetch month');
+        consecutiveErrors++;
+        log.error({ err, month, consecutiveErrors }, 'Failed to fetch month');
+        if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          log.info({ month }, 'Too many consecutive errors, stopping forward fetch');
+          break;
+        }
       }
     }
 
