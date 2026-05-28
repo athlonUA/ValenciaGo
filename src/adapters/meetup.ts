@@ -7,13 +7,32 @@ import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('meetup');
 
-const FIND_URL = 'https://www.meetup.com/find/es--valencia/';
+const BASE_URL = 'https://www.meetup.com/find/es--valencia/';
 
-// Additional category pages for more coverage
-const CATEGORY_URLS = [
-  'https://www.meetup.com/find/es--valencia/?categoryId=32',  // Sports & Fitness
-  'https://www.meetup.com/find/es--valencia/?categoryId=15',  // Arts & Culture
+// Fetch all Meetup categories to maximise event coverage
+const CATEGORY_IDS = [
+  2,   // Career & Business
+  6,   // Education & Learning
+  9,   // Food & Drink
+  10,  // Games
+  11,  // Health & Wellbeing
+  12,  // Hobbies & Crafts
+  14,  // Language & Culture
+  15,  // Arts & Culture
+  17,  // Music
+  18,  // New Age & Spirituality
+  19,  // Outdoors & Adventure
+  23,  // Photography
+  24,  // Sports & Recreation
+  27,  // Socializing
+  32,  // Sports & Fitness
+  34,  // Tech
+  35,  // Wellness
 ];
+
+function categoryUrl(id: number): string {
+  return `${BASE_URL}?categoryId=${id}`;
+}
 
 interface MeetupEventData {
   id: string;
@@ -52,9 +71,9 @@ export class MeetupAdapter implements SourceAdapter {
   readonly enabled = true;
 
   async fetchEvents(): Promise<RawEvent[]> {
-    log.info({ url: FIND_URL }, 'Fetching events');
+    log.info({ url: BASE_URL }, 'Fetching events');
 
-    const response = await axios.get(FIND_URL, {
+    const response = await axios.get(BASE_URL, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -65,19 +84,26 @@ export class MeetupAdapter implements SourceAdapter {
 
     const html = response.data as string;
 
-    // Extract from main page
-    const events = this.extractFromNextData(html);
-    const jsonLdEvents = this.extractFromJsonLd(html);
-    let merged = this.mergeEvents(events, jsonLdEvents);
+    // Single persistent Map for dedup across all pages — O(n) total
+    const byId = new Map<string, RawEvent>();
 
-    // Safety limit — prevent unbounded fetching
-    const MAX_EVENTS = 500;
+    // Extract from main page
+    const mainNextData = this.extractFromNextData(html);
+    const mainJsonLd = this.extractFromJsonLd(html);
+    for (const evt of mainNextData) byId.set(evt.sourceId, evt);
+    for (const evt of mainJsonLd) { if (!byId.has(evt.sourceId)) byId.set(evt.sourceId, evt); }
+
+    // Safety limit — prevent unbounded fetching across categories
+    const MAX_EVENTS = 2000;
 
     // Fetch additional category pages for broader coverage
-    for (const catUrl of CATEGORY_URLS) {
-      if (merged.length >= MAX_EVENTS) break;
+    for (let i = 0; i < CATEGORY_IDS.length; i++) {
+      if (byId.size >= MAX_EVENTS) break;
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
+      const catId = CATEGORY_IDS[i];
+      const url = categoryUrl(catId);
       try {
-        const catResponse = await axios.get(catUrl, {
+        const catResponse = await axios.get(url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -85,13 +111,16 @@ export class MeetupAdapter implements SourceAdapter {
           },
           timeout: 15000,
         });
-        const catEvents = this.extractFromNextData(catResponse.data as string);
+        const catNextData = this.extractFromNextData(catResponse.data as string);
         const catJsonLd = this.extractFromJsonLd(catResponse.data as string);
-        merged = this.mergeEvents(merged, [...catEvents, ...catJsonLd]);
+        for (const evt of catNextData) byId.set(evt.sourceId, evt);
+        for (const evt of catJsonLd) { if (!byId.has(evt.sourceId)) byId.set(evt.sourceId, evt); }
       } catch (err) {
         log.error({ err }, 'Error fetching category page');
       }
     }
+
+    const merged = Array.from(byId.values());
 
     log.info({ count: merged.length }, 'Parsed unique events');
 
@@ -117,20 +146,20 @@ export class MeetupAdapter implements SourceAdapter {
 
       const allEvents: MeetupEventData[] = [];
 
-      // Collect events from all available arrays
-      const arrays = [
-        'eventsInLocation',
-        'todayEvents',
-        'thisWeekendEvents',
-        'topicalEventsMusic',
-        'topicalEventsSocial',
-        'topicalEventsOutdoor',
-        'topicalEventsSports',
-      ];
-
-      for (const key of arrays) {
+      // Dynamically discover all event arrays in pageProps — avoids
+      // silently dropping events when Meetup adds/renames topical keys.
+      for (const key of Object.keys(pageProps)) {
         const arr = pageProps[key];
-        if (Array.isArray(arr)) {
+        if (!Array.isArray(arr) || arr.length === 0) continue;
+        const first = arr[0];
+        if (
+          first &&
+          typeof first === 'object' &&
+          first !== null &&
+          'id' in first &&
+          'title' in first &&
+          'dateTime' in first
+        ) {
           allEvents.push(...arr);
         }
       }
@@ -308,21 +337,4 @@ export class MeetupAdapter implements SourceAdapter {
     log.info({ enriched, total: events.length }, 'Enriched events with descriptions');
   }
 
-  private mergeEvents(primary: RawEvent[], secondary: RawEvent[]): RawEvent[] {
-    const byId = new Map<string, RawEvent>();
-
-    // Primary (__NEXT_DATA__) takes precedence
-    for (const evt of primary) {
-      byId.set(evt.sourceId, evt);
-    }
-
-    // Add JSON-LD events not already present
-    for (const evt of secondary) {
-      if (!byId.has(evt.sourceId)) {
-        byId.set(evt.sourceId, evt);
-      }
-    }
-
-    return Array.from(byId.values());
-  }
 }

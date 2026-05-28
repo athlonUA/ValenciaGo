@@ -21,18 +21,18 @@ export class VisitValenciaAdapter implements SourceAdapter {
     const events: RawEvent[] = [];
     const now = new Date();
 
-    // Fetch current month and next month
-    const months = [
-      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-    ];
-    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    months.push(
-      `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`,
-    );
-
-    for (const month of months) {
+    // Fetch all months with events (up to 12 months ahead). Stop when a
+    // month returns nothing — the site stops listing after ~6 months.
+    const MAX_MONTHS_AHEAD = 12;
+    for (let i = 0; i < MAX_MONTHS_AHEAD; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       try {
         const monthEvents = await this.fetchMonth(month);
+        if (monthEvents.length === 0 && i >= 2) {
+          log.info({ month }, 'Empty month, stopping forward fetch');
+          break;
+        }
         events.push(...monthEvents);
       } catch (err) {
         log.error({ err, month }, 'Failed to fetch month');

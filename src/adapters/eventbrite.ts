@@ -16,7 +16,7 @@ const VALENCIA_BBOX = {
   right: -0.25,
 };
 
-const MAX_PAGES = 10;
+const MAX_PAGES = 50;
 // Eventbrite ranks paid/promoted listings first by default. Public free events (city
 // festivals, gastromarkets) often sit below the cut-off. We do a second pass with
 // price='free' to surface them, and merge by event ID.
