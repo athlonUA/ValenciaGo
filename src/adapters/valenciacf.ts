@@ -6,7 +6,7 @@ import { isAllowedUrl } from '../utils/url.js';
 
 const log = createLogger('valenciacf');
 
-const SCHEDULE_URL = 'https://www.valenciacf.com/results?range=next';
+const SCHEDULE_URL = 'https://www.valenciacf.com/results?range=all';
 
 /**
  * Valencia CF match schedule adapter.
@@ -100,15 +100,16 @@ export class ValenciaCFAdapter implements SourceAdapter {
   private parseMatchDate(dateText: string, timeText: string): string | null {
     if (!dateText) return null;
 
+    const time = this.parseTime(timeText);
+
     // Try patterns like "12/04/2026", "12 Apr", "Sat 12 Apr"
     const ddmmyyyy = dateText.match(/(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
     if (ddmmyyyy) {
       const [, day, month, year] = ddmmyyyy;
-      const time = this.parseTime(timeText);
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${time}+02:00`;
     }
 
-    // Try "12 Apr 2026" or similar
+    // Try "12 Apr 2026" or "Sat 12 Apr" (no year — infer from context)
     const months: Record<string, string> = {
       jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
       jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
@@ -120,11 +121,15 @@ export class ValenciaCFAdapter implements SourceAdapter {
       const day = textMatch[1].padStart(2, '0');
       const monthKey = textMatch[2].toLowerCase().substring(0, 3);
       const month = months[monthKey];
-      const year = textMatch[3] || '2026';
-      if (month) {
-        const time = this.parseTime(timeText);
-        return `${year}-${month}-${day}T${time}+02:00`;
+      if (!month) return null;
+
+      let year = textMatch[3] ? parseInt(textMatch[3], 10) : new Date().getFullYear();
+      const candidate = new Date(year, parseInt(month, 10) - 1, parseInt(day, 10));
+      // If no explicit year and the date is more than 30 days in the past, bump to next year
+      if (!textMatch[3] && candidate.getTime() < Date.now() - 30 * 86_400_000) {
+        year += 1;
       }
+      return `${year}-${month}-${day}T${time}+02:00`;
     }
 
     return null;
