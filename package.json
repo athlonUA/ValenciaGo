@@ -2,6 +2,7 @@
   "name": "valencia-events",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "Event discovery platform for Valencia, Spain",
   "type": "module",
   "scripts": {

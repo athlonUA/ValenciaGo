@@ -302,4 +302,5 @@ npm run dev
 
 ## License
 
-MIT
+This project is licensed under the MIT License.  
+You are free to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, including for commercial purposes. See the [LICENSE](./LICENSE) file for details.
